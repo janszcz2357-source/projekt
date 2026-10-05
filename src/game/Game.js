@@ -493,7 +493,7 @@ export class Game {
       this.hud.update({
         tel: v.telemetry, timer: this.timer, settings: this.settings, record: this.record, delta,
         maxRpm: GT_CAR.engine.limiterRpm + 200, redline: GT_CAR.engine.redlineRpm,
-        camName: CAMERA_NAMES[cr.mode], fps: this.fps, countdown: this.state === 'countdown',
+        camName: CAMERA_NAMES[cr.mode], camMode: cr.mode, fps: this.fps, countdown: this.state === 'countdown',
       });
       const heading = Math.atan2(2 * (this._quat.x * this._quat.z + this._quat.w * this._quat.y), 1 - 2 * (this._quat.x ** 2 + this._quat.y ** 2));
       this._mmFrame = (this._mmFrame || 0) + 1;

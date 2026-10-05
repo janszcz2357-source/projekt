@@ -702,6 +702,32 @@ export class Vehicle {
     if (impact > 0.5) this._registerImpact(impact);
   }
 
+  // ---- publiczne API kontaktu z innymi obiektami (kolizje miedzy autami)
+  /** predkosc punktu bryly (swiat) */
+  velocityAt(point, out) {
+    _r.subVectors(point, this.pos);
+    return out.crossVectors(this.angVel, _r).add(this.vel);
+  }
+
+  /** odwrotnosc masy efektywnej w punkcie wzdluz kierunku n */
+  effectiveInvMass(point, n) {
+    const r = _r.subVectors(point, this.pos);
+    const rn = _tmp.crossVectors(r, n);
+    return 1 / this.mass + this._worldInvInertiaMul(rn, _tmp2).cross(r).dot(n);
+  }
+
+  /** impuls J [N s] w punkcie (swiat) */
+  applyImpulse(point, J) {
+    this.vel.addScaledVector(J, 1 / this.mass);
+    _r.subVectors(point, this.pos);
+    _tmp.crossVectors(_r, J);
+    this.angVel.add(this._worldInvInertiaMul(_tmp, _tmp2));
+  }
+
+  registerContact(speed) {
+    if (speed > 0.8) this._registerImpact(speed);
+  }
+
   _registerImpact(v) {
     this.lastImpact = v;
     this.impactCount++;

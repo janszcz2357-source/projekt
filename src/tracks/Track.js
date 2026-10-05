@@ -246,10 +246,25 @@ export class Track {
     this.raceCurvSigned = gaussianClosed(ks, 2);
     // prosty model punktowy (GG + docisk), sluzy autopilotowi testowemu i kolorowaniu linii
     const g = 9.81, mu = 1.5, kAero = (0.5 * 1.225 * 2.5) / 1300, vmax = 82;
+    // krzywizna pionowa (d(nachylenie)/ds): grzbiet (<0) odciaza auto, dolina (>0) dociska
+    const kv = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = (i - 4 + n) % n, b = (i + 4) % n;
+      kv[i] = (this.grade[b] - this.grade[a]) / Math.max(1, ds[i] * 8);
+    }
+    this.vertCurv = gaussianClosed(kv, 3);
+    const kvs = this.vertCurv;
+    // efektywne "g" (nacisk) przy predkosci v: g + v^2 * kv (bez docisku aero); min. 30% g
+    const gEff = (i, vv) => Math.max(0.3 * g, g + vv * vv * Math.min(0, kvs[i]) + vv * vv * Math.max(0, kvs[i]) * 0.5);
     const v = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-      const den = kk[i] - mu * kAero;
-      v[i] = den > 1e-6 ? Math.min(vmax, Math.sqrt((mu * g) / den)) : vmax;
+      // rozwiazanie iteracyjne v = sqrt(mu*(gEff(v) + kAero v^2)/k)
+      let vv = vmax;
+      for (let it = 0; it < 8; it++) {
+        const lat = mu * (gEff(i, vv) + kAero * vv * vv);
+        vv = kk[i] > 1e-6 ? Math.min(vmax, Math.sqrt(lat / kk[i])) : vmax;
+      }
+      v[i] = vv;
     }
     // wzdluznie: przyspieszanie ograniczone moca, hamowanie ~1.4 g + docisk
     for (let pass = 0; pass < 2; pass++) {
@@ -257,9 +272,10 @@ export class Track {
         const i = q % n, j = (i + 1) % n;
         const vi = v[i];
         const latA = vi * vi * kk[i];
-        const latMax = mu * (g + kAero * vi * vi);
+        const latMax = mu * (gEff(i, vi) + kAero * vi * vi);
         const fr = Math.sqrt(Math.max(0, 1 - (latA / latMax) ** 2));
-        const aPow = Math.min(9.5, 360000 / (1300 * Math.max(vi, 5))) - (0.5 * 1.225 * 1.0 * vi * vi) / 1300 - g * this.grade[i];
+        // ciag: ~330 kW na kolach (srednio miedzy zmianami biegow), ograniczenie trakcji ~1 g, opor aero i toczenia
+        const aPow = Math.min(9.5, 330000 / (1300 * Math.max(vi, 5))) - (0.5 * 1.225 * 1.0 * vi * vi) / 1300 - 0.12 - g * this.grade[i];
         const vn = Math.sqrt(vi * vi + 2 * Math.max(0.3, aPow * fr) * ds[i]);
         if (vn < v[j]) v[j] = vn;
       }
@@ -267,9 +283,10 @@ export class Track {
         const i = q % n, j = (i - 1 + n) % n;
         const vi = v[i];
         const latA = vi * vi * kk[i];
-        const latMax = mu * (g + kAero * vi * vi);
+        const latMax = mu * (gEff(i, vi) + kAero * vi * vi);
         const fr = Math.sqrt(Math.max(0, 1 - (latA / latMax) ** 2));
-        const aBr = (1.3 * (g + kAero * vi * vi) + (0.5 * 1.225 * vi * vi) / 1300) * Math.max(0.15, fr) + g * this.grade[j];
+        // hamowanie ~1.5 g + docisk (pomiar z ABS: 1.57-1.72 g), z zapasem na laczny poslizg w zakrecie
+        const aBr = (1.5 * (gEff(j, vi) + kAero * vi * vi) + (0.5 * 1.225 * vi * vi) / 1300) * Math.max(0.15, fr) + g * this.grade[j];
         const vp = Math.sqrt(vi * vi + 2 * aBr * ds[j]);
         if (vp < v[j]) v[j] = vp;
       }

@@ -484,7 +484,9 @@ section('11. Przejazd tylko klawiatura (wejscia 0/1 przez ten sam filtr skretu/p
     v.reset(sp.x, sp.z, sp.heading, 0, sp.index);
     // "mozg" (autopilot) liczy zadane wejscia, ktore zamieniamy na wcisniecia klawiszy co klatke 60 Hz
     const shadow = { input: {}, pos: v.pos, quat: v.quat, vel: v.vel, angVel: v.angVel, trackIndex: 0, cfg: GT_CAR, forwardSpeed: () => v.forwardSpeed() };
-    const brain = new Autopilot(track, shadow, { pace: 0.88 });
+    // tempo 0.86: profil predkosci liczy szybsze zakrety (docisk, krzywizna pionowa), wiec 0.86 daje
+    // te same czasy co dawniej 0.88 (~3:05 na Spa) - test sprawdza sterowalnosc klawiatura, nie tempo
+    const brain = new Autopilot(track, shadow, { pace: 0.86 });
     const inp = new Input();
     const timer = new LapTimer(track);
     const laps = [];
@@ -512,6 +514,49 @@ section('11. Przejazd tylko klawiatura (wejscia 0/1 przez ten sam filtr skretu/p
     const fmt = (x) => (x == null ? '-' : `${Math.floor(x / 60)}:${(x % 60).toFixed(3).padStart(6, '0')}`);
     const valid = laps.filter((l) => l.valid).length;
     check(`${track.name}: okrazenia z klawiatury (wazne / ukonczone)`, valid, 2, 2, '', `${laps.map((l) => fmt(l.time)).join(', ')}; uderzenia w bariery: ${v.impactCount - imp}`);
+  }
+}
+
+// ===================================================================== 12. kamery (plynnosc)
+section('12. Plynnosc kamer: autopilot na Spa (V-max ~240 km/h), petla gry przy 30 / 60 (nierowne) / 144 FPS');
+{
+  const THREE = await import('three');
+  const { CameraRig } = await import('../src/render/CameraRig.js');
+  for (const mode of ['chase', 'hood', 'cockpit']) {
+    for (const fps of ['30', '60j', '144']) {
+      const track = loadTrack('spa');
+      const v = new Vehicle(GT_CAR, track);
+      Object.assign(v.settings, { absLevel: 2, tcLevel: 2, autoGearbox: true });
+      const i0 = track.flyingIndex;
+      const sp = track.spawn(i0, track.raceLat[i0]);
+      v.reset(sp.x, sp.z, sp.heading, track.speedProfile[i0] * 0.8, sp.index);
+      const ap = new Autopilot(track, v, { pace: 0.93 });
+      const cam = new THREE.PerspectiveCamera(62, 16 / 9, 0.05, 10000);
+      const rig = new CameraRig(cam, GT_CAR);
+      rig.setMode(mode);
+      const st = new FixedStepper(PHYSICS.stepHz);
+      const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const frame = () => (fps === '144' ? 1 / 144 : fps === '30' ? 1 / 30 : (1 / 60) * (0.8 + rnd() * 0.4));
+      let prevP = null, prevV = null, maxAcc = 0, t = 0;
+      while (t < 60) {
+        const dt = frame();
+        st.advance(dt, (h) => { ap.update(h); v.step(h); });
+        t += dt;
+        pos.lerpVectors(v.prevPos, v.pos, st.alpha);
+        quat.slerpQuaternions(v.prevQuat, v.quat, st.alpha);
+        rig.update(pos, quat, v.telemetry, dt, v.input.steer);
+        const p = cam.position.clone();
+        if (prevP) {
+          const vel = p.clone().sub(prevP).divideScalar(dt);
+          if (prevV && t > 1) maxAcc = Math.max(maxAcc, vel.clone().sub(prevV).length() / dt);
+          prevV = vel;
+        }
+        prevP = p;
+      }
+      check(`kamera ${mode} @ ${fps === '60j' ? '60 FPS (nierowne klatki)' : fps + ' FPS'}: maks. przyspieszenie kamery`, maxAcc, 0, 150, 'm/s2', 'przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)');
+    }
   }
 }
 

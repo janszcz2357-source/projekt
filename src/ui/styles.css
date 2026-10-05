@@ -152,3 +152,8 @@ kbd { background: #1d232c; border: 1px solid #39424f; border-bottom-width: 2px; 
   .hud-tr { transform: scale(0.6); transform-origin: top right; }
   .hud-bottom { transform: scale(0.8); transform-origin: bottom center; }
 }
+
+/* kokpit: deska HUD z boku, zeby nie zaslaniac kierownicy */
+#hud.cockpit .hud-bottom { justify-content: flex-end; padding-right: 18px; }
+#hud.cockpit .dash { width: 330px; }
+#hud.cockpit .pedals { height: 104px; }

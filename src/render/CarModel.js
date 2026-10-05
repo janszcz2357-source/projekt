@@ -20,11 +20,11 @@ function curve(points) {
 }
 
 /** loft: lista stacji z, funkcja przekroju z -> [[x, y], ...] (od lewego dolu przez gore do prawego dolu) */
-function loft(zs, section, { capFront = false, capRear = false, uvV = null } = {}) {
+function loft(zs, section, { capFront = false, capRear = false, uvV = null, uRange = null } = {}) {
   const pos = [];
   const uv = [];
   const idx = [];
-  const zMin = zs[0], zMax = zs[zs.length - 1];
+  const zMin = uRange ? uRange[0] : zs[0], zMax = uRange ? uRange[1] : zs[zs.length - 1];
   let cols = 0;
   zs.forEach((z, si) => {
     const pts = section(z);
@@ -191,7 +191,7 @@ export class CarModel {
     const B = this.cfg.body;
     const zf = B.front, zr = B.rear;
     this.zf = zf; this.zr = zr; this.fa = fa; this.ra = ra;
-    const top = curve([[zf, 0.40], [zf - 0.13, 0.56], [zf - 0.45, 0.67], [fa, 0.77], [0.95, 0.84], [0.85, 0.87], [0.40, 1.06], [0.02, 1.18], [-0.35, 1.20], [-0.85, 1.16], [-1.3, 1.05], [-1.72, 0.95], [zr + 0.2, 0.93], [zr, 0.90]]);
+    const top = curve([[zf, 0.40], [zf - 0.13, 0.56], [zf - 0.45, 0.67], [fa, 0.77], [0.95, 0.84], [0.85, 0.87], [0.40, 1.08], [0.02, 1.215], [-0.35, 1.235], [-0.85, 1.19], [-1.3, 1.07], [-1.72, 0.95], [zr + 0.2, 0.93], [zr, 0.90]]);
     const shoulder = curve([[zf, 0.40], [zf - 0.13, 0.55], [zf - 0.45, 0.70], [fa, 0.81], [0.95, 0.80], [0.55, 0.85], [-0.3, 0.88], [ra, 0.95], [-1.85, 0.95], [zr, 0.90]]);
     const half = curve([[zf, 0.72], [zf - 0.13, 0.86], [zf - 0.45, 0.95], [fa, 0.995], [0.85, 0.95], [0.2, 0.925], [-0.45, 0.94], [ra, 1.01], [-1.9, 0.985], [zr, 0.90]]);
     const arch = (z) => {
@@ -237,9 +237,30 @@ export class CarModel {
       const right = left.slice(0, -1).reverse().map(([x, y]) => [-x, y]);
       return [...left, ...right];
     };
-    const geo = loft(zs, section, { uvV: (k, n) => k / (n - 1) });
-    const bodyMesh = new THREE.Mesh(geo, this.mats.paint);
-    this.exterior.add(bodyMesh);
+    // nadwozie w trzech czesciach: przod (maska), tyl (pokrywa) i kabina jako otwarta "wanna"
+    // (same sciany boczne z progiem) - inaczej z wnetrza widac by bylo dach "pokladu" zamiast deski
+    const uRange = [zr, zf];
+    const NS = SIDE.length + TOP.length * 2 - 1; // liczba punktow pelnego przekroju
+    const frontZ = [cabinTo, ...zs.filter((z) => z > cabinTo)];
+    const rearZ = [...zs.filter((z) => z < cabinFrom), cabinFrom];
+    const cabinZ = [cabinFrom, ...zs.filter((z) => z > cabinFrom && z < cabinTo), cabinTo];
+    const closed = (z) => section(z === cabinTo ? cabinTo + 1e-4 : z === cabinFrom ? cabinFrom - 1e-4 : z);
+    for (const part of [frontZ, rearZ]) {
+      this.exterior.add(new THREE.Mesh(loft(part, closed, { uRange, uvV: (k, n) => k / (n - 1) }), this.mats.paint));
+    }
+    const wall = (z) => {
+      const hw = half(z);
+      const yb = Math.min(arch(z), shoulder(z) - 0.03);
+      const ys = shoulder(z);
+      const pts = SIDE.map((f) => [hw * (0.955 + Math.sin(f * Math.PI) * 0.035) - (f === 0 ? 0.02 : 0), yb + (ys - yb) * f]);
+      pts.push([hw * 0.9, ys + 0.008], [hw * 0.87, ys - 0.09]);
+      return pts;
+    };
+    const vL = (k) => Math.min(k, SIDE.length + 1) / (NS - 1);
+    this.exterior.add(new THREE.Mesh(loft(cabinZ, wall, { uRange, uvV: (k) => vL(k) }), this.mats.paint));
+    const wallR = (z) => wall(z).map(([x, y]) => [-x, y]).reverse();
+    const nW = SIDE.length + 2;
+    this.exterior.add(new THREE.Mesh(loft(cabinZ, wallR, { uRange, uvV: (k) => 1 - vL(nW - 1 - k) }), this.mats.paint));
     // zaslepki przod/tyl (plaskie, z wlasnymi normalnymi): tyl - panel w kolorze nadwozia + czarny dol
     const capMesh = (z, dir) => {
       const pts = section(z);
@@ -277,13 +298,14 @@ export class CarModel {
     const roofSection = (z) => {
       const ys = shoulder(z);
       const yr = top(z) + 0.006;
-      const hr = 0.47;
+      const hr = 0.45;
       const pts = [];
-      for (const f of [1, 0.75, 0.5, 0.25, 0]) pts.push([hr * f, yr - 0.03 * Math.pow(f, 3) + 0.0 * ys]);
+      for (const f of [1, 0.75, 0.5, 0.25, 0]) pts.push([hr * f, yr + 0.004 - 0.012 * Math.pow(f, 3) + 0.0 * ys]);
       const right = pts.slice(0, -1).reverse().map(([x, y]) => [-x, y]);
       return [...pts, ...right];
     };
-    const roof = new THREE.Mesh(loft(range(-0.92, 0.12, 20), roofSection), this.mats.paint);
+    this._roofGeo = loft(range(-0.92, 0.12, 20), roofSection);
+    const roof = new THREE.Mesh(this._roofGeo, this.mats.paint);
     this.exterior.add(roof);
     // slupki A (wzdluz krawedzi szyby czolowej)
     const aGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.95, 6);
@@ -339,8 +361,8 @@ export class CarModel {
     dh.scale.setScalar(0.8);
     this.exterior.add(dh);
     // lusterka
-    const mirGeo = new THREE.SphereGeometry(0.11, 12, 8);
-    mirGeo.scale(0.7, 0.6, 1.0);
+    const mirGeo = new THREE.SphereGeometry(0.11, 14, 10);
+    mirGeo.scale(0.55, 0.45, 1.15);
     for (const sx of [1, -1]) {
       const m = new THREE.Mesh(mirGeo, this.mats.paintPlain);
       m.position.set(sx * 1.0, 0.98, 0.72);
@@ -518,78 +540,110 @@ export class CarModel {
   _buildInterior() {
     const I = this.interior;
     const m = this.mats;
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.16, 0.46), m.interior);
-    dash.position.set(0, 0.85, 0.66);
-    // oslona zegarow przed kierowca
-    const hood = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.07, 0.24), m.interior);
-    hood.position.set(0.38, 0.95, 0.56);
-    hood.rotation.x = -0.15;
-    I.add(hood);
-    dash.rotation.x = -0.1;
-    I.add(dash);
-    // wyswietlacz cyfrowy
+    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
+      const o = new THREE.Mesh(geo, mat);
+      o.position.set(x, y, z);
+      o.rotation.set(rx, ry, rz);
+      I.add(o);
+      return o;
+    };
+    // --- zamkniecie kabiny od przodu: grodz i nogi (promienie spod deski nie "ucieka" na zewnatrz)
+    add(new THREE.BoxGeometry(1.72, 0.74, 0.04), m.interior, 0, 0.56, 0.94);
+    // --- deska rozdzielcza: profil (z, y) wyciagniety na szerokosc kabiny
+    const sh = new THREE.Shape([
+      new THREE.Vector2(0.45, 0.72), new THREE.Vector2(0.45, 0.85), new THREE.Vector2(0.5, 0.915),
+      new THREE.Vector2(0.62, 0.94), new THREE.Vector2(0.8, 0.93), new THREE.Vector2(0.95, 0.875), new THREE.Vector2(0.95, 0.72),
+    ]);
+    const dashGeo = new THREE.ExtrudeGeometry(sh, { depth: 1.68, bevelEnabled: false, curveSegments: 4 });
+    dashGeo.rotateY(-Math.PI / 2);
+    dashGeo.translate(0.84, 0, 0);
+    dashGeo.computeVertexNormals();
+    add(dashGeo, m.interior, 0, 0, 0);
+    // --- wyswietlacz cyfrowy (ten sam obraz na kierownicy i w zegarach)
     this.dashCanvas = document.createElement('canvas');
     this.dashCanvas.width = 512;
     this.dashCanvas.height = 192;
     this.dashTex = new THREE.CanvasTexture(this.dashCanvas);
     this.dashTex.colorSpace = THREE.SRGBColorSpace;
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.112), new THREE.MeshBasicMaterial({ map: this.dashTex, toneMapped: false }));
-    // kierownica (ksztalt GT3: obrecz + plaska plyta z wyswietlaczem)
+    const screenMat = new THREE.MeshBasicMaterial({ map: this.dashTex, toneMapped: false });
+    // oslona zegarow + ekran zestawu wskaznikow przed kierowca
+    add(new THREE.BoxGeometry(0.44, 0.05, 0.2), m.interior, 0.37, 0.965, 0.55, -0.12);
+    const cluster = add(new THREE.PlaneGeometry(0.26, 0.097), screenMat, 0.37, 0.915, 0.47, -0.35, Math.PI);
+    cluster.rotation.order = 'YXZ';
+    cluster.rotation.set(-0.35, Math.PI, 0); // ekran zwrocony do kierowcy, odchylony do tylu
+    // konsola srodkowa z panelem przelacznikow
+    add(new THREE.BoxGeometry(0.3, 0.5, 0.16), m.carbon, 0, 0.62, 0.66, -0.25);
+    const sw = document.createElement('canvas');
+    sw.width = 128;
+    sw.height = 192;
+    const sctx = sw.getContext('2d');
+    sctx.fillStyle = '#121418';
+    sctx.fillRect(0, 0, 128, 192);
+    const cols = ['#d33', '#3c3', '#fc2', '#39f', '#eee', '#f80'];
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) {
+      sctx.fillStyle = '#2a2e35';
+      sctx.fillRect(10 + c * 38, 12 + r * 36, 30, 24);
+      sctx.fillStyle = cols[(r * 3 + c) % cols.length];
+      sctx.fillRect(14 + c * 38, 16 + r * 36, 22, 6);
+    }
+    const swTex = new THREE.CanvasTexture(sw);
+    swTex.colorSpace = THREE.SRGBColorSpace;
+    add(new THREE.PlaneGeometry(0.26, 0.4), new THREE.MeshStandardMaterial({ map: swTex, roughness: 0.6 }), 0, 0.64, 0.575, 0.25, Math.PI);
+    // --- kierownica GT3 (prostokatna z zaokragleniami) z wyswietlaczem, przyciskami, lopatkami
     this.steeringWheel = new THREE.Group();
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.175, 0.024, 10, 28, Math.PI * 1.55), m.black);
-    rim.rotation.z = -Math.PI * 0.275; // przerwa obreczy na dole
+    class RimCurve extends THREE.Curve {
+      getPoint(t, out = new THREE.Vector3()) {
+        const a = t * Math.PI * 2;
+        const c = Math.cos(a), s2 = Math.sin(a);
+        const n = 3.2;
+        return out.set(0.16 * Math.sign(c) * Math.pow(Math.abs(c), 2 / n), 0.12 * Math.sign(s2) * Math.pow(Math.abs(s2), 2 / n), 0);
+      }
+    }
+    const rim = new THREE.Mesh(new THREE.TubeGeometry(new RimCurve(), 64, 0.022, 8, true), m.black);
     this.steeringWheel.add(rim);
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.13, 0.03), m.carbon);
-    plate.position.y = 0.0;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.15, 0.028), m.carbon);
     this.steeringWheel.add(plate);
-    const bottom = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.03, 0.03), m.black);
-    bottom.position.y = -0.13;
-    this.steeringWheel.add(bottom);
-    scr.position.set(0, 0.0, 0.017);
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.056), screenMat);
+    scr.position.set(0, 0.025, 0.0145);
     this.steeringWheel.add(scr);
-    const btnCols = [0xff3030, 0x30ff60, 0xffd000, 0x3080ff];
+    const btnCols = [0xff3030, 0x30ff60, 0xffd000, 0x3080ff, 0xffffff, 0xff8800];
     btnCols.forEach((c, k) => {
-      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.01, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.3 }));
-      b.position.set((k % 2 ? 1 : -1) * 0.12, k < 2 ? 0.035 : -0.035, 0.02);
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.01, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.35 }));
+      b.position.set(((k % 3) - 1) * 0.06, -0.045, 0.018);
       this.steeringWheel.add(b);
     });
-    // lopatki zmiany biegow
     for (const sx of [1, -1]) {
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.008), m.carbon);
-      p.position.set(sx * 0.12, 0.02, -0.04);
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.11, 0.008), m.carbon);
+      p.position.set(sx * 0.115, 0.02, -0.035);
       this.steeringWheel.add(p);
     }
     const wheelHolder = new THREE.Group();
-    wheelHolder.position.set(0.38, 0.86, 0.3);
-    wheelHolder.rotation.x = -0.32;
+    wheelHolder.position.set(0.37, 0.88, 0.3);
+    wheelHolder.rotation.x = -0.3;
     wheelHolder.add(this.steeringWheel);
     this.steeringWheel.rotation.y = Math.PI; // przodem do kierowcy
     I.add(wheelHolder);
-    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.3, 8), m.black);
-    column.position.set(0.38, 0.86, 0.45);
-    column.rotation.x = Math.PI / 2 - 0.32;
-    I.add(column);
-    // fotel kubelkowy
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.75, 0.12), m.interior);
-    seat.position.set(0.38, 0.62, -0.62);
-    seat.rotation.x = -0.25;
-    I.add(seat);
-    const seatB = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.12, 0.5), m.interior);
-    seatB.position.set(0.38, 0.3, -0.35);
-    I.add(seatB);
-    // boczki drzwi i podloga
+    add(new THREE.CylinderGeometry(0.025, 0.03, 0.26, 8), m.black, 0.37, 0.9, 0.44, Math.PI / 2 - 0.3);
+    // --- fotel kubelkowy
+    add(new THREE.BoxGeometry(0.52, 0.75, 0.12), m.interior, 0.37, 0.62, -0.62, -0.25);
+    add(new THREE.BoxGeometry(0.52, 0.12, 0.5), m.interior, 0.37, 0.3, -0.35);
+    for (const sx of [0.27, -0.27]) add(new THREE.BoxGeometry(0.06, 0.55, 0.4), m.interior, 0.37 + sx, 0.55, -0.5);
+    // --- boczki drzwi z progiem, slupki B, podloga, tunel
     for (const sx of [1, -1]) {
-      const door = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.62, 1.7), m.interior);
-      door.position.set(sx * 0.84, 0.52, -0.1);
-      I.add(door);
+      add(new THREE.BoxGeometry(0.06, 0.7, 1.85), m.interior, sx * 0.8, 0.53, -0.02);
+      add(new THREE.BoxGeometry(0.16, 0.045, 1.85), m.interior, sx * 0.8, 0.88, -0.02);
+      add(new THREE.BoxGeometry(0.06, 0.32, 0.1), m.interior, sx * 0.79, 1.03, -0.92, 0, 0, sx * 0.25);
     }
-    const tunnel = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.3, 1.3), m.carbon);
-    tunnel.position.set(0, 0.35, 0.0);
-    I.add(tunnel);
-    const fl = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.03, 2.2), m.interior);
-    fl.position.set(0, 0.2, -0.1);
-    I.add(fl);
-    // klatka bezpieczenstwa
+    add(new THREE.BoxGeometry(0.26, 0.3, 1.3), m.carbon, 0, 0.35, 0.0);
+    add(new THREE.BoxGeometry(1.7, 0.03, 2.2), m.interior, 0, 0.2, -0.1);
+    // --- podsufitka: dach widziany od srodka
+    if (this._roofGeo) {
+      const head = new THREE.Mesh(this._roofGeo, new THREE.MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.95, side: THREE.BackSide }));
+      head.position.y = -0.012;
+      head.scale.set(1.04, 1, 1);
+      I.add(head);
+    }
+    // --- klatka bezpieczenstwa
     const tube = (a, b, r = 0.022) => {
       const pa = new THREE.Vector3(...a), pb = new THREE.Vector3(...b);
       const len = pa.distanceTo(pb);
@@ -599,27 +653,23 @@ export class CarModel {
       I.add(t);
     };
     for (const sx of [1, -1]) {
-      tube([sx * 0.74, 0.88, 0.8], [sx * 0.52, 1.175, 0.0]);
-      tube([sx * 0.52, 1.175, 0.0], [sx * 0.5, 1.15, -0.85]);
-      tube([sx * 0.7, 0.3, -0.85], [sx * 0.5, 1.15, -0.85]);
+      tube([sx * 0.72, 0.9, 0.82], [sx * 0.53, 1.19, 0.0]);
+      tube([sx * 0.53, 1.19, 0.0], [sx * 0.5, 1.17, -0.85]);
+      tube([sx * 0.7, 0.3, -0.85], [sx * 0.5, 1.17, -0.85]);
+      tube([sx * 0.74, 0.55, 0.8], [sx * 0.74, 0.55, -0.85], 0.02);
     }
-    tube([0.5, 1.15, -0.85], [-0.5, 1.15, -0.85]);
-    tube([0.5, 1.175, 0.0], [-0.5, 1.175, 0.0], 0.019);
-    tube([0.6, 0.35, -0.85], [-0.5, 1.15, -0.85], 0.02);
-    // lusterko wsteczne
-    const rm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.045, 0.015), m.black);
-    rm.position.set(0, 1.135, 0.12);
-    I.add(rm);
-    const rmg = new THREE.Mesh(new THREE.PlaneGeometry(0.19, 0.038), m.chrome);
-    rmg.position.set(0, 1.135, 0.111);
-    rmg.rotation.y = Math.PI;
-    I.add(rmg);
+    tube([0.5, 1.17, -0.85], [-0.5, 1.17, -0.85]);
+    tube([0.53, 1.19, 0.0], [-0.53, 1.19, 0.0], 0.019);
+    tube([0.6, 0.35, -0.85], [-0.5, 1.17, -0.85], 0.02);
+    // --- lusterko wsteczne
+    add(new THREE.BoxGeometry(0.2, 0.045, 0.015), m.black, 0, 1.15, 0.1);
+    add(new THREE.PlaneGeometry(0.19, 0.038), m.chrome, 0, 1.15, 0.091, 0, Math.PI);
   }
 
   _buildDriver() {
     const D = this.driver;
     const helm = new THREE.Mesh(new THREE.SphereGeometry(0.135, 16, 12), this.mats.helmet);
-    helm.position.set(0.38, 1.04, -0.36);
+    helm.position.set(0.37, 1.04, -0.34);
     D.add(helm);
     const visor = new THREE.Mesh(new THREE.SphereGeometry(0.137, 16, 8, -0.9, 1.8, 1.1, 0.7), this.mats.black);
     visor.position.copy(helm.position);

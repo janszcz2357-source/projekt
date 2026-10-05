@@ -1,6 +1,6 @@
 # Wyniki testow fizyki (node tests/physics.test.mjs)
 
-Data: 2026-10-05T15:27:44.152Z  ·  krok fizyki 120 Hz, 4 podkroki  ·  wynik: wszystkie OK
+Data: 2026-10-05T19:57:42.420Z  ·  krok fizyki 120 Hz, 4 podkroki  ·  wynik: wszystkie OK
 
 
 ## 1. Spoczynek: rozklad obciazen i stabilnosc
@@ -95,42 +95,54 @@ Data: 2026-10-05T15:27:44.152Z  ·  krok fizyki 120 Hz, 4 podkroki  ·  wynik: w
 ## 9. Kolizja z bariera: prosto w szykane Rettifilo przy ~220 km/h bez hamowania
 
 - ✅ liczba uderzen w bariere: **9.000**  (oczekiwane 1–1000)
-- ✅ maks. przekroczenie linii bariery przez srodek auta: **-2.512** m (oczekiwane -50–0) — ujemne = srodek auta zawsze po stronie toru
+- ✅ maks. przekroczenie linii bariery przez srodek auta: **-2.515** m (oczekiwane -50–0) — ujemne = srodek auta zawsze po stronie toru
 - ✅ brak NaN / eksplozji symulacji: **0.000**  (oczekiwane 0–0)
 - predkosc uderzenia (skladowa normalna): **193.0** km/h
-- predkosc po zdarzeniu (min.): **6.197** km/h
+- predkosc po zdarzeniu (min.): **5.799** km/h
 
 ## 10. Pelne okrazenie (autopilot przez te same wejscia co gracz, start z pola, ABS 2 / TC 2)
 
-- ✅ Autodromo Nazionale Monza: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:11.798, okr. 2 (lotne) 2:07.943
+- ✅ Autodromo Nazionale Monza: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:10.095, okr. 2 (lotne) 2:06.433
 - ✅ Autodromo Nazionale Monza: okrazenie lotne wazne: **1.000**  (oczekiwane 1–1)
 - ✅ Autodromo Nazionale Monza: uderzenia w bariery: **0.000**  (oczekiwane 0–0)
 - ✅ Autodromo Nazionale Monza: brak NaN: **0.000**  (oczekiwane 0–0)
-- Autodromo Nazionale Monza: V-max: **256.9** km/h
-- Autodromo Nazionale Monza: czas symulacji / czas obliczen: **469.1** x czasu rzeczywistego
-- ✅ Circuit de Spa-Francorchamps: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:50.257, okr. 2 (lotne) 2:48.266
+- Autodromo Nazionale Monza: V-max: **248.4** km/h
+- Autodromo Nazionale Monza: czas symulacji / czas obliczen: **509.2** x czasu rzeczywistego
+- ✅ Circuit de Spa-Francorchamps: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:50.144, okr. 2 (lotne) 2:48.208
 - ✅ Circuit de Spa-Francorchamps: okrazenie lotne wazne: **1.000**  (oczekiwane 1–1)
 - ✅ Circuit de Spa-Francorchamps: uderzenia w bariery: **0.000**  (oczekiwane 0–0)
 - ✅ Circuit de Spa-Francorchamps: brak NaN: **0.000**  (oczekiwane 0–0)
-- Circuit de Spa-Francorchamps: V-max: **246.4** km/h
-- Circuit de Spa-Francorchamps: czas symulacji / czas obliczen: **524.5** x czasu rzeczywistego
-- ✅ Silverstone Circuit: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:37.869, okr. 2 (lotne) 2:35.767
+- Circuit de Spa-Francorchamps: V-max: **237.4** km/h
+- Circuit de Spa-Francorchamps: czas symulacji / czas obliczen: **537.2** x czasu rzeczywistego
+- ✅ Silverstone Circuit: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:35.645, okr. 2 (lotne) 2:33.583
 - ✅ Silverstone Circuit: okrazenie lotne wazne: **1.000**  (oczekiwane 1–1)
 - ✅ Silverstone Circuit: uderzenia w bariery: **0.000**  (oczekiwane 0–0)
 - ✅ Silverstone Circuit: brak NaN: **0.000**  (oczekiwane 0–0)
-- Silverstone Circuit: V-max: **234.6** km/h
-- Silverstone Circuit: czas symulacji / czas obliczen: **537.5** x czasu rzeczywistego
+- Silverstone Circuit: V-max: **228.7** km/h
+- Silverstone Circuit: czas symulacji / czas obliczen: **546.0** x czasu rzeczywistego
 
 ## 11. Przejazd tylko klawiatura (wejscia 0/1 przez ten sam filtr skretu/pedalow co u gracza)
 
-- ✅ Autodromo Nazionale Monza: okrazenia z klawiatury (wazne / ukonczone): **2.000**  (oczekiwane 2–2) — 2:21.962, 2:18.506; uderzenia w bariery: 0
-- ✅ Circuit de Spa-Francorchamps: okrazenia z klawiatury (wazne / ukonczone): **2.000**  (oczekiwane 2–2) — 3:05.034, 3:03.586; uderzenia w bariery: 0
-- ✅ Silverstone Circuit: okrazenia z klawiatury (wazne / ukonczone): **2.000**  (oczekiwane 2–2) — 2:48.113, 2:46.095; uderzenia w bariery: 0
+- ✅ Autodromo Nazionale Monza: okrazenia z klawiatury (wazne / ukonczone): **2.000**  (oczekiwane 2–2) — 2:21.512, 2:18.037; uderzenia w bariery: 0
+- ✅ Circuit de Spa-Francorchamps: okrazenia z klawiatury (wazne / ukonczone): **2.000**  (oczekiwane 2–2) — 3:06.582, 3:05.200; uderzenia w bariery: 0
+- ✅ Silverstone Circuit: okrazenia z klawiatury (wazne / ukonczone): **2.000**  (oczekiwane 2–2) — 2:49.498, 2:47.684; uderzenia w bariery: 0
+
+## 12. Plynnosc kamer: autopilot na Spa (V-max ~240 km/h), petla gry przy 30 / 60 (nierowne) / 144 FPS
+
+- ✅ kamera chase @ 30 FPS: maks. przyspieszenie kamery: **26.8** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera chase @ 60 FPS (nierowne klatki): maks. przyspieszenie kamery: **38.7** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera chase @ 144 FPS: maks. przyspieszenie kamery: **74.1** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera hood @ 30 FPS: maks. przyspieszenie kamery: **22.3** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera hood @ 60 FPS (nierowne klatki): maks. przyspieszenie kamery: **26.4** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera hood @ 144 FPS: maks. przyspieszenie kamery: **28.1** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera cockpit @ 30 FPS: maks. przyspieszenie kamery: **22.3** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera cockpit @ 60 FPS (nierowne klatki): maks. przyspieszenie kamery: **26.0** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
+- ✅ kamera cockpit @ 144 FPS: maks. przyspieszenie kamery: **28.2** m/s2 (oczekiwane 0–150) — przed poprawka kamery poscigowej: ~65 000 m/s2 (skoki powyzej ~195 km/h)
 
 ## Okrazenia autopilota
 
 | Tor | Okr. 1 (z miejsca) | Okr. 2 (lotne) | Sektory okr. 2 [s] | V-max [km/h] |
 |---|---|---|---|---|
-| Autodromo Nazionale Monza | 2:11.798 | 2:07.943 | 43.82 / 47.56 / 36.56 | 257 |
-| Circuit de Spa-Francorchamps | 2:50.257 | 2:48.266 | 49.21 / 63.33 / 55.72 | 246 |
-| Silverstone Circuit | 2:37.869 | 2:35.767 | 53.61 / 54.67 / 47.49 | 235 |
+| Autodromo Nazionale Monza | 2:10.095 | 2:06.433 | 42.46 / 47.30 / 36.66 | 248 |
+| Circuit de Spa-Francorchamps | 2:50.144 | 2:48.208 | 49.34 / 63.31 / 55.56 | 237 |
+| Silverstone Circuit | 2:35.645 | 2:33.583 | 52.73 / 53.91 / 46.94 | 229 |

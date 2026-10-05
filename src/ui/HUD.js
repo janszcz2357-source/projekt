@@ -139,6 +139,11 @@ export class HUD {
     this._set('tcTxt', E.tc, settings.tc === 0 ? 'TC' : `TC ${settings.tc}`);
     this._set('gbx', E.gbx, settings.gearbox === 'auto' ? 'AUTO' : 'MANUAL');
     this._set('cam', E.cam, camName);
+    const cockpit = s.camMode === 'cockpit';
+    if (this._cache.cockpit !== cockpit) {
+      this._cache.cockpit = cockpit;
+      this.root.classList.toggle('cockpit', cockpit);
+    }
     const gg = Math.hypot(tel.latG, tel.longG);
     this._set('g', E.g, gg.toFixed(1) + ' g');
     E.fps.classList.toggle('hidden', !settings.showFps);
