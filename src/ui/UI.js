@@ -109,12 +109,22 @@ export function setupUI(game) {
     settingsUI.refresh(game.settings);
     drawPaints();
   };
+  // potwierdzenie drugim kliknieciem (bez okien dialogowych przegladarki)
+  let clearArmed = null;
   $('btn-records-clear').onclick = () => {
-    if (window.confirm('Usunąć wszystkie zapisane rekordy okrążeń?')) {
-      game.records.clear();
-      game.record = null;
-      refreshRecords();
+    const btn = $('btn-records-clear');
+    if (!clearArmed) {
+      btn.textContent = 'Kliknij ponownie, aby usunąć rekordy';
+      clearArmed = setTimeout(() => { clearArmed = null; btn.textContent = 'Usuń rekordy'; }, 4000);
+      return;
     }
+    clearTimeout(clearArmed);
+    clearArmed = null;
+    game.records.clear();
+    game.record = null;
+    refreshRecords();
+    btn.textContent = 'Rekordy usunięte';
+    setTimeout(() => { btn.textContent = 'Usuń rekordy'; }, 2000);
   };
   const updatePadStatus = () => {
     const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
@@ -174,6 +184,13 @@ export function setupUI(game) {
 
   // ---- o projekcie
   $('about-text').innerHTML = ABOUT_HTML;
+  // urzadzenia dotykowe bez klawiatury: gra wymaga klawiatury lub pada
+  if (window.matchMedia?.('(pointer: coarse)').matches) {
+    const n = document.createElement('p');
+    n.className = 'mode-desc';
+    n.textContent = 'Sterowanie wymaga klawiatury lub pada (brak sterowania dotykowego).';
+    $('btn-start').parentElement.after(n);
+  }
 
   return {
     async boot() {
