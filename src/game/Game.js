@@ -6,18 +6,20 @@ import { Track } from '../tracks/Track.js';
 import { getTrackDef } from '../tracks/trackList.js';
 import { TrackMesh, createTrackMaterials, buildTrackside, GeoBuilder } from '../render/TrackMesh.js';
 import { createSky, SunLight, buildTerrain, Forest } from '../render/Environment.js';
-import { CarModel } from '../render/CarModel.js';
+import { CarModel, OpponentTemplate, OpponentCar } from '../render/CarModel.js';
 import { CameraRig, CAMERA_NAMES } from '../render/CameraRig.js';
 import { Skidmarks, Particles } from '../render/Effects.js';
 import { FixedStepper } from './FixedStepper.js';
 import { LapTimer } from './LapTimer.js';
 import { Autopilot } from './autopilot.js';
+import { Race, gridFromLapTime } from './Race.js';
 import { Input } from './Input.js';
 import { AudioEngine } from '../audio/AudioEngine.js';
 import { HUD } from '../ui/HUD.js';
 import { loadSettings, saveSettings, Records, formatTime } from './Storage.js';
 
-const MODE_NAMES = { practice: 'TRENING', timeattack: 'TIME ATTACK' };
+const MODE_NAMES = { practice: 'TRENING', timeattack: 'TIME ATTACK', race: 'WYŚCIG', career: 'KARIERA' };
+const isRaceMode = (m) => m === 'race' || m === 'career';
 const wait = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 export class Game {
@@ -46,6 +48,12 @@ export class Game {
     this.vehicle = null;
     this.timer = null;
     this.autopilot = null;
+    this.race = null; // wyscig z AI (tryby race / career)
+    this.opponents = []; // modele 3D rywali
+    this._oppTpl = null;
+    this.playerAuto = null; // autopilot gracza na okrazeniu zjazdowym po mecie
+    this.carCfg = GT_CAR; // konfiguracja auta gracza (kariera: z ulepszeniami)
+    this.sessionOpts = {};
     this.fps = 60;
     this._last = performance.now();
     this._countdown = null;
@@ -239,6 +247,7 @@ export class Game {
   }
 
   _disposeWorld() {
+    this._clearRace();
     const w = this.world;
     if (!w) return;
     for (const o of w.objects) {
@@ -283,6 +292,8 @@ export class Game {
   // ------------------------------------------------------------------ sesje
   /** tlo menu: auto jedzie samo (autopilot) */
   startDemo() {
+    this._clearRace();
+    this._usePlayerCfg(GT_CAR);
     this.state = 'menu';
     this.vehicle.holdBrakes = false;
     this._applyVehicleSettings();
@@ -300,7 +311,13 @@ export class Game {
     this.stepper.reset();
   }
 
-  async startSession(mode, trackId) {
+  /**
+   * mode: practice | timeattack | race | career
+   * opts (wyscig): { field, laps, playerGrid, carCfg, career }
+   */
+  async startSession(mode, trackId, opts = null) {
+    if (opts) this.sessionOpts = opts;
+    else if (!isRaceMode(mode)) this.sessionOpts = {};
     this.audio.init();
     this.audio.mute(false);
     this.audio.setVolumes({ master: this.settings.volMaster, engine: this.settings.volEngine, effects: this.settings.volEffects });
@@ -310,10 +327,13 @@ export class Game {
       this._emit('loading', false);
     }
     this.mode = mode;
-    this.settings.lastMode = mode;
+    if (mode !== 'career') this.settings.lastMode = mode;
     this.settings.lastTrack = this.trackId;
     saveSettings(this.settings);
     this.autopilot = null;
+    this.playerAuto = null;
+    this._raceEnded = false;
+    this._usePlayerCfg(this.sessionOpts.carCfg || GT_CAR);
     document.activeElement?.blur?.(); // Spacja/Enter nie moga "klikac" przyciskow menu w trakcie jazdy
     this.state = 'countdown';
     this._applyVehicleSettings();
@@ -323,7 +343,17 @@ export class Game {
     this.world.particles.clear();
     this.input.reset();
     this.input.clearEdges();
-    if (mode === 'timeattack') {
+    this._clearRace();
+    if (isRaceMode(mode)) {
+      const o = this.sessionOpts;
+      // 'quali': pole startowe wg najlepszego czasu gracza na tym torze (na tle szacowanych czasow AI)
+      const pg = o.playerGrid === 'quali' ? gridFromLapTime(t, o.field, this.bestLapOn(this.trackId)) : o.playerGrid;
+      this.race = new Race(t, {
+        player: this.vehicle, playerName: 'Ty', playerNumber: 27, opponents: o.field, laps: o.laps,
+        playerGrid: pg, aiCfg: GT_CAR,
+      });
+      this._buildOpponents();
+    } else if (mode === 'timeattack') {
       const i = t.flyingIndex;
       const sp = t.spawn(i, t.raceLat[i]);
       this._flyingSpeed = t.speedProfile[i] * 0.8;
@@ -334,8 +364,9 @@ export class Game {
     }
     this.cameraRig.setMode(this.settings.camera);
     this.carModel.setCockpitMode(this.settings.camera === 'cockpit');
-    this.record = this.records.get(this.trackId, mode);
+    this.record = this.records.get(this.trackId, mode === 'career' ? 'race' : mode);
     this.hud.setMode(MODE_NAMES[mode]);
+    this.hud.setRace(this.race);
     this.hud.show(true);
     this.hud.clearMessage();
     this._countdown = { t: 0, lit: 0, goAt: 0.8 + 5 * 0.7 + 0.4 + Math.random() * 1.2, done: false };
@@ -346,11 +377,85 @@ export class Game {
   }
 
   restart() {
-    this.startSession(this.mode);
+    this.startSession(this.mode, null, this.sessionOpts);
+  }
+
+  /** najlepszy czas gracza na torze (trening / time attack / wyscig) */
+  bestLapOn(trackId) {
+    let best = null;
+    for (const m of ['practice', 'timeattack', 'race']) {
+      const r = this.records.get(trackId, m);
+      if (r && (best == null || r.time < best)) best = r.time;
+    }
+    return best;
+  }
+
+  // ------------------------------------------------------------------ wyscig
+  /** konfiguracja auta gracza (np. ulepszenia w karierze) - nowa bryla fizyczna, gdy inna */
+  _usePlayerCfg(cfg) {
+    if (!this.track || (this.vehicle && this.vehicle.cfg === cfg)) return;
+    this.carCfg = cfg;
+    this.vehicle = new Vehicle(cfg, this.track);
+    this._applyVehicleSettings();
+  }
+
+  _buildOpponents() {
+    const r = this.race;
+    this._oppTpl ||= new OpponentTemplate(GT_CAR);
+    for (const c of r.cars) {
+      if (c.isPlayer) continue;
+      const view = new OpponentCar(this._oppTpl, { paint: c.paint, number: c.number });
+      view.car = c;
+      this.scene.add(view.root);
+      this.opponents.push(view);
+    }
+  }
+
+  _clearRace() {
+    for (const o of this.opponents) {
+      this.scene.remove(o.root);
+      o.dispose();
+    }
+    this.opponents = [];
+    this.race = null;
+    this.playerAuto = null;
+    this.hud?.setRace(null);
+  }
+
+  _syncOpponents(alpha) {
+    const cam = this.camera.position;
+    const p = this._oppPos ||= new THREE.Vector3();
+    const q = this._oppQuat ||= new THREE.Quaternion();
+    for (const o of this.opponents) {
+      const v = o.car.vehicle;
+      p.lerpVectors(v.prevPos, v.pos, alpha);
+      const d2 = p.distanceToSquared(cam);
+      o.root.visible = d2 < 700 * 700;
+      if (!o.root.visible) continue;
+      q.slerpQuaternions(v.prevQuat, v.quat, alpha);
+      o.update(v, p, q);
+    }
+  }
+
+  _onRaceFinish() {
+    const r = this.race;
+    const me = r.player;
+    this._raceEnded = true;
+    this.hud.message('META!', `Pozycja ${me.position} / ${r.cars.length}`, 4000, '#7dffb0');
+    this.audio.chime(me.position === 1);
+    // okrazenie zjazdowe: auto gracza prowadzi autopilot
+    this.playerAuto = new Autopilot(this.track, this.vehicle, { pace: 0.6 });
+    clearTimeout(this._resultsTimer);
+    this._resultsTimer = setTimeout(() => {
+      if (this.race !== r) return;
+      this.hud.show(false);
+      this._emit('raceResults', { results: r.results(), race: r, mode: this.mode, opts: this.sessionOpts, trackId: this.trackId, laps: r.laps });
+    }, 3500);
   }
 
   pause() {
     if (this.state !== 'running' && this.state !== 'countdown') return;
+    if (this._raceEnded) return;
     this._pausedFrom = this.state;
     this.state = 'paused';
     this.audio.suspend();
@@ -369,6 +474,7 @@ export class Game {
   }
 
   quitToMenu() {
+    clearTimeout(this._resultsTimer);
     this.audio.resume();
     this.startDemo();
     this._emit('menu');
@@ -379,9 +485,11 @@ export class Game {
     if (!this.vehicle || this.state === 'menu') return;
     const t = this.track;
     const d = t.distanceAlong(this.vehicle.pos.x, this.vehicle.pos.z, this.vehicle.trackIndex);
-    const i = t.idx(d.index - 4);
+    let i = t.idx(d.index - 4);
+    if (this.race) i = this.race.playerReset(this.race.player, i);
     const sp = t.spawn(i, t.raceLat[i] * 0.5);
     this.vehicle.reset(sp.x, sp.z, sp.heading, 0, sp.index);
+    if (this.race) this.race.syncAfterReset(this.race.player);
     this.timer.carReset();
     this.stepper.reset();
     this.cameraRig.initialized = false;
@@ -394,10 +502,10 @@ export class Game {
       const lap = e.lap;
       let rec = false;
       if (lap.valid) {
-        rec = this.records.submit(this.trackId, this.mode, lap, this.timer.bestTrace && e.best ? this.timer.bestTrace : null, {
+        rec = this.records.submit(this.trackId, this.mode === 'career' ? 'race' : this.mode, lap, this.timer.bestTrace && e.best ? this.timer.bestTrace : null, {
           abs: this.settings.abs, tc: this.settings.tc, gearbox: this.settings.gearbox,
         });
-        if (rec) this.record = this.records.get(this.trackId, this.mode);
+        if (rec) this.record = this.records.get(this.trackId, this.mode === 'career' ? 'race' : this.mode);
       }
       if (!lap.valid) this.hud.message(`Okrążenie ${lap.number}: ${formatTime(lap.time)}`, `NIEWAŻNE – ${lap.reason}`, 3000, '#ff8a80');
       else if (rec) this.hud.message(`NOWY REKORD ${formatTime(lap.time)}`, `Okrążenie ${lap.number}`, 3500, '#d9b8ff');
@@ -429,7 +537,7 @@ export class Game {
         const m = this.cameraRig.next();
         this.carModel.setCockpitMode(m === 'cockpit');
       }
-      if (inp.consume('reset') && this.state === 'running') this.resetCar();
+      if (inp.consume('reset') && this.state === 'running' && !this._raceEnded) this.resetCar();
       if (inp.consume('shiftUp')) { v.shiftRequests++; }
       if (inp.consume('shiftDown')) { v.shiftRequests--; }
       this.cameraRig.lookBack = !!inp.lookBack;
@@ -447,9 +555,13 @@ export class Game {
     // --- fizyka (staly krok 120 Hz)
     const frozen = this.state === 'countdown' && this.mode === 'timeattack';
     if (this.state === 'running' || this.state === 'menu' || (this.state === 'countdown' && !frozen)) {
+      const race = this.race;
       this.stepper.advance(dt, (h) => {
         if (this.state === 'menu' && this.autopilot) this.autopilot.update(h);
-        else {
+        else if (this.playerAuto) {
+          this.playerAuto.update(h);
+          v.holdBrakes = false;
+        } else {
           v.input.steer = ctrl.steer;
           v.input.throttle = ctrl.throttle;
           v.input.brake = ctrl.brake;
@@ -457,9 +569,20 @@ export class Game {
           v.input.handbrake = ctrl.handbrake;
         }
         v.step(h);
+        if (race) {
+          race.stepAI(h);
+          race.postStep(h);
+        }
         if (this.state === 'running') this.timer.update(h, v);
         this.world.skid.addFromVehicle(v);
       });
+      if (race) {
+        // slady opon rywali tylko w poblizu kamery (ograniczony bufor)
+        for (const o of this.opponents) {
+          if (o.root.visible && o.car.vehicle.pos.distanceToSquared(this.camera.position) < 90 * 90) this.world.skid.addFromVehicle(o.car.vehicle);
+        }
+        if (race.player.finished && !this._raceEnded) this._onRaceFinish();
+      }
       if (this.state === 'menu' && this.autopilot && (v.telemetry.upsideDown || v.telemetry.offTrackWheels >= 4 && v.telemetry.speed < 2)) this.startDemo();
     } else {
       this.stepper.alpha = 1;
@@ -467,6 +590,7 @@ export class Game {
 
     // --- grafika
     this._syncCar(this.stepper.alpha, dt);
+    if (this.opponents.length) this._syncOpponents(this.stepper.alpha);
     const cr = this.cameraRig;
     cr.shake = cr.mode !== 'chase' ? Math.min(0.012, v.telemetry.curbWheels * 0.004 + (v.telemetry.speed > 60 ? 0.0012 : 0)) : 0;
     cr.update(this._pos, this._quat, v.telemetry, dt, ctrl.steer);
@@ -497,7 +621,8 @@ export class Game {
       });
       const heading = Math.atan2(2 * (this._quat.x * this._quat.z + this._quat.w * this._quat.y), 1 - 2 * (this._quat.x ** 2 + this._quat.y ** 2));
       this._mmFrame = (this._mmFrame || 0) + 1;
-      if (this._mmFrame % 2 === 0) this.hud.minimap.draw(this._pos, heading); // 30 Hz wystarczy
+      if (this._mmFrame % 2 === 0) this.hud.minimap.draw(this._pos, heading, null, this.race ? this.opponents : null); // 30 Hz wystarczy
+      if (this.race && this._mmFrame % 6 === 0) this.hud.updateRace(this.race);
       if (this.state !== 'paused') this.audio.update(v, cr.mode === 'cockpit', dt);
       this._dashTimer -= dt;
       if (cr.mode === 'cockpit' && this._dashTimer <= 0) {
@@ -526,12 +651,19 @@ export class Game {
       this.audio.beep(false);
     }
     this.hud.lights(c.lit, false, true);
-    if (c.t < 0.8) this.hud.message(this.mode === 'timeattack' ? 'TIME ATTACK' : 'TRENING', this.mode === 'timeattack' ? 'Start lotny – pomiar od linii mety' : 'Start zatrzymany – pomiar od linii mety', 0);
+    if (c.t < 0.8) {
+      if (this.race) {
+        const p = this.race.player;
+        const ev = this.sessionOpts.career;
+        this.hud.message(ev ? `${ev.seriesName} – runda ${ev.round + 1}/${ev.rounds}` : 'WYŚCIG', `${this.race.laps} okr. · start z pola ${p.grid + 1} / ${this.race.cars.length}`, 0);
+      } else this.hud.message(this.mode === 'timeattack' ? 'TIME ATTACK' : 'TRENING', this.mode === 'timeattack' ? 'Start lotny – pomiar od linii mety' : 'Start zatrzymany – pomiar od linii mety', 0);
+    }
     else this.hud.clearMessage();
     if (c.t >= c.goAt) {
       c.done = true;
       this.state = 'running';
       this.vehicle.holdBrakes = false;
+      this.race?.go();
       this.audio.beep(true);
       this.hud.lights(0, true, true);
       this.hud.message('START!', '', 900, '#7dffb0');

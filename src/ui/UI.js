@@ -3,7 +3,12 @@ import { TRACKS } from '../tracks/trackList.js';
 import { Minimap } from './Minimap.js';
 import { buildSettingsUI } from './SettingsUI.js';
 import { PAINTS } from '../render/CarModel.js';
-import { DEFAULT_SETTINGS, formatTime, formatSector } from '../game/Storage.js';
+import { DEFAULT_SETTINGS, formatTime, formatSector, safeGet, safeSet } from '../game/Storage.js';
+import { setupRaceOptions, singleRaceOpts, renderResults } from './RaceUI.js';
+import { setupCareerUI, renderCareerSummary } from './CareerUI.js';
+import { Career, applyUpgrades, POINTS } from '../game/Career.js';
+import { qualifyingOrder, rng } from '../game/Race.js';
+import { GT_CAR } from '../config/carConfig.js';
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
@@ -11,6 +16,8 @@ const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
 const MODE_DESC = {
   practice: 'Swobodna jazda bez limitu okrążeń. Start zatrzymany z pola startowego, pomiar od linii mety. Najlepsze okrążenie zapisuje się jako rekord trybu treningowego.',
   timeattack: 'Start lotny sprzed ostatniego zakrętu. Liczy się tylko najlepsze ważne okrążenie – wyjazd wszystkimi kołami poza tor lub ominięcie punktu kontrolnego unieważnia czas. Delta na żywo względem rekordu.',
+  race: 'Wyścig z kierowcami AI: start zatrzymany ze świateł, jazda w ruchu (wyprzedzanie, cień aerodynamiczny), kontakt między autami. Wybierz liczbę rywali, okrążeń, poziom i pole startowe.',
+  career: 'Trzy serie: GT Cup Amateur → GT Pro Series → GT Masters. Punkty i klasyfikacja sezonu, nagrody za wyniki, ulepszenia auta w warsztacie. Top 3 sezonu odblokowuje wyższą serię. Postęp zapisuje się automatycznie.',
 };
 
 export function setupUI(game) {
@@ -38,7 +45,7 @@ export function setupUI(game) {
   }
   const refreshRecords = () => {
     for (const t of TRACKS) {
-      const r = game.records.get(t.id, selMode);
+      const r = game.records.get(t.id, selMode === 'career' ? 'race' : selMode);
       cards[t.id].querySelector('.tr').textContent = r ? `Rekord: ${formatTime(r.time)}` : 'Rekord: brak';
     }
   };
@@ -60,6 +67,9 @@ export function setupUI(game) {
     selMode = m;
     [...seg.children].forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
     $('mode-desc').textContent = MODE_DESC[m];
+    show('race-opts', m === 'race');
+    $('btn-start').textContent = m === 'career' ? 'KARIERA ▸' : 'START';
+    list.classList.toggle('dim', m === 'career');
     refreshRecords();
   };
   seg.addEventListener('click', (e) => { if (e.target.dataset.mode) setMode(e.target.dataset.mode); });
@@ -134,9 +144,52 @@ export function setupUI(game) {
 
   // ---- start / pauza
   const showLoading = (on) => show('loading', on);
-  $('btn-start').onclick = async () => {
+  // ---- kariera
+  const career = new Career({ get: safeGet, set: safeSet });
+  const careerUI = setupCareerUI(career, {
+    onStartRound: (ev) => {
+      show('career', false);
+      const se = career.state.season;
+      const opts = {
+        field: qualifyingOrder(ev.field, rng(se.seed + 7 * (ev.round + 1))),
+        laps: ev.laps,
+        playerGrid: 'quali',
+        carCfg: applyUpgrades(GT_CAR, career.state.upgrades),
+        career: { seriesName: ev.series.name, round: ev.round, rounds: ev.series.rounds.length },
+      };
+      game.startSession('career', ev.trackId, opts);
+    },
+    onBack: () => { show('career', false); show('menu', true); },
+    bestLapFor: (id) => game.bestLapOn(id),
+  });
+  const openCareer = () => {
     show('menu', false);
-    await game.startSession(selMode, selTrack);
+    careerUI.render();
+    show('career', true);
+  };
+  $('btn-start').onclick = async () => {
+    if (selMode === 'career') { openCareer(); return; }
+    show('menu', false);
+    await game.startSession(selMode, selTrack, selMode === 'race' ? singleRaceOpts(game.settings) : null);
+  };
+  setupRaceOptions(game);
+  // ---- wyniki wyscigu
+  let afterResults = 'menu';
+  game.on('raceResults', ({ results, mode, trackId, laps }) => {
+    const isCareer = mode === 'career';
+    renderResults({ results, trackId, laps, careerPoints: isCareer ? POINTS : null });
+    renderCareerSummary(career, isCareer ? career.recordRace(results) : null);
+    show('btn-res-next', isCareer);
+    show('btn-res-restart', !isCareer);
+    afterResults = isCareer ? 'career' : 'menu';
+    show('results', true);
+  });
+  $('btn-res-next').onclick = () => { show('results', false); afterResults = 'career'; game.quitToMenu(); };
+  $('btn-res-menu').onclick = () => { show('results', false); afterResults = 'menu'; game.quitToMenu(); };
+  $('btn-res-restart').onclick = () => {
+    show('results', false);
+    // nowy wyscig z ta sama stawka i ustawieniami
+    game.restart();
   };
   $('btn-resume').onclick = () => game.resume();
   $('btn-restart').onclick = () => { game.resume(); game.restart(); };
@@ -150,8 +203,15 @@ export function setupUI(game) {
     if (on) renderLapList();
   });
   game.on('menu', () => {
-    show('menu', true);
+    if (afterResults === 'career') {
+      afterResults = 'menu';
+      openCareer();
+    } else show('menu', true);
     refreshRecords();
+  });
+  game.on('session', ({ mode }) => {
+    $('btn-restart').textContent = mode === 'race' || mode === 'career' ? 'Restart wyścigu' : 'Restart sesji';
+    $('btn-quit').textContent = mode === 'career' ? 'Wyjdź (runda nie zostanie zaliczona)' : 'Wyjdź do menu';
   });
   game.on('lap', () => refreshRecords());
   game.on('padStart', () => {
@@ -180,6 +240,7 @@ export function setupUI(game) {
     if (e.code === 'Escape' && !$('settings').classList.contains('hidden')) { e.stopPropagation(); closeOverlay('settings'); }
     else if (e.code === 'Escape' && !$('controls').classList.contains('hidden')) { e.stopPropagation(); closeOverlay('controls'); }
     else if (e.code === 'Escape' && !$('about').classList.contains('hidden')) { e.stopPropagation(); closeOverlay('about'); }
+    else if (e.code === 'Escape' && !$('career').classList.contains('hidden')) { e.stopPropagation(); show('career', false); show('menu', true); }
   }, true);
 
   // ---- o projekcie

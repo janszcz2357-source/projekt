@@ -1,6 +1,7 @@
 // Proceduralny model samochodu GT (karoseria lofowana z przekrojow, kola, swiatla, kokpit).
 // Uklad lokalny jak w fizyce: +X lewo, +Y gora, +Z przod, poczatek w srodku ciezkosci.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -76,17 +77,18 @@ export const PAINTS = {
   argento: { name: 'Argento', color: 0x9aa0a8 },
 };
 
-function liveryTexture(baseHex) {
+function liveryTexture(baseHex, res = 1, accentHex = null) {
   const c = document.createElement('canvas');
-  c.width = 1024;
-  c.height = 512;
+  c.width = 1024 * res;
+  c.height = 512 * res;
   const ctx = c.getContext('2d');
+  ctx.scale(res, res);
   const base = new THREE.Color(baseHex);
   ctx.fillStyle = '#' + base.getHexString();
   ctx.fillRect(0, 0, 1024, 512);
   // pasy wzdluz srodka (v ~ 0.5) - w obrazie y ~ 256
   const lum = base.r * 0.3 + base.g * 0.59 + base.b * 0.11;
-  const stripe = lum > 0.5 ? '#16181c' : '#f4f4f4';
+  const stripe = accentHex != null ? '#' + new THREE.Color(accentHex).getHexString() : lum > 0.5 ? '#16181c' : '#f4f4f4';
   ctx.fillStyle = stripe;
   ctx.fillRect(0, 256 - 34, 1024, 18);
   ctx.fillRect(0, 256 + 16, 1024, 18);
@@ -107,11 +109,12 @@ function liveryTexture(baseHex) {
   return t;
 }
 
-function decalTexture(number) {
+function decalTexture(number, res = 1) {
   const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
+  c.width = 256 * res;
+  c.height = 256 * res;
   const ctx = c.getContext('2d');
+  ctx.scale(res, res);
   ctx.fillStyle = '#ffffff';
   ctx.beginPath(); ctx.arc(128, 128, 118, 0, Math.PI * 2); ctx.fill();
   ctx.lineWidth = 10;
@@ -128,7 +131,7 @@ function decalTexture(number) {
 }
 
 export class CarModel {
-  constructor(cfg, { paint = 'rosso', number = 27, envMap = null } = {}) {
+  constructor(cfg, { paint = 'rosso', number = 27, envMap = null, lite = false } = {}) {
     this.cfg = cfg;
     this.root = new THREE.Group(); // pozycja/orientacja z fizyki
     this.root.name = 'car';
@@ -166,7 +169,8 @@ export class CarModel {
     this._buildAero();
     this._buildLights();
     this._buildWheels();
-    this._buildInterior();
+    if (lite) this._buildLiteInterior();
+    else this._buildInterior();
     this._buildDriver();
     this.root.traverse((o) => {
       if (o.isMesh) {
@@ -666,6 +670,22 @@ export class CarModel {
     add(new THREE.PlaneGeometry(0.19, 0.038), m.chrome, 0, 1.15, 0.091, 0, Math.PI);
   }
 
+  /** uproszczone wnetrze (auta rywali - widoczne tylko przez przyciemniane szyby) */
+  _buildLiteInterior() {
+    const I = this.interior;
+    const box = (w, h, d, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), this.mats.interior);
+      m.position.set(x, y, z);
+      I.add(m);
+    };
+    box(1.6, 0.06, 2.4, 0, 0.3, -0.2); // podloga
+    box(1.6, 0.3, 0.45, 0, 0.78, 0.7); // deska
+    box(0.5, 0.7, 0.12, 0.37, 0.65, -0.62); // fotel
+    box(1.5, 0.6, 0.06, 0, 0.6, -0.95); // tylna sciana
+    box(0.06, 0.05, 1.7, 0.53, 1.17, -0.4); // klatka
+    box(0.06, 0.05, 1.7, -0.53, 1.17, -0.4);
+  }
+
   _buildDriver() {
     const D = this.driver;
     const helm = new THREE.Mesh(new THREE.SphereGeometry(0.135, 16, 12), this.mats.helmet);
@@ -762,5 +782,143 @@ export class CarModel {
     ctx.font = '20px Arial';
     ctx.fillText(`ABS ${extra?.abs ?? '-'}  TC ${extra?.tc ?? '-'}`, 490, 150);
     this.dashTex.needsUpdate = true;
+  }
+}
+
+// ====================================================================== auta rywali
+// Jeden szablon (geometria scalona wg materialu - kilkanascie wywolan rysowania na auto zamiast ~100),
+// wspolny dla wszystkich rywali; kazde auto ma wlasny lakier, numer i swiatla stop.
+
+/** przygotowanie geometrii do scalenia: bez indeksu, wspolny zestaw atrybutow, transformacja wypalona */
+function bake(geo, matrix) {
+  const g = geo.index ? geo.toNonIndexed() : geo.clone();
+  g.applyMatrix4(matrix);
+  for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k);
+  if (!g.attributes.normal) g.computeVertexNormals();
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  g.morphAttributes = {};
+  g.clearGroups();
+  if (matrix.determinant() < 0) {
+    // odbicie lustrzane odwraca kolejnosc wierzcholkow - przywracamy (inaczej sciany "znikaja")
+    for (const name of ['position', 'normal', 'uv']) {
+      const a = g.attributes[name], n = a.itemSize, arr = a.array;
+      for (let t = 0; t < a.count; t += 3) {
+        for (let c = 0; c < n; c++) {
+          const i1 = (t + 1) * n + c, i2 = (t + 2) * n + c;
+          const tmp = arr[i1]; arr[i1] = arr[i2]; arr[i2] = tmp;
+        }
+      }
+    }
+  }
+  return g;
+}
+
+export class OpponentTemplate {
+  constructor(cfg) {
+    const src = new CarModel(cfg, { paint: 'rosso', number: 0, lite: true });
+    src.root.updateMatrixWorld(true);
+    this.cfg = cfg;
+    this.mats = src.mats;
+    // tarcze rywali bez "zarzenia" (wspolny material)
+    this.mats.disc.emissiveIntensity = 0;
+    const keyOf = new Map(Object.entries(src.mats).map(([k, m]) => [m, k]));
+    const lists = new Map();
+    const push = (key, g) => { if (!lists.has(key)) lists.set(key, []); lists.get(key).push(g); };
+    src.body.traverse((o) => {
+      if (!o.isMesh || !o.visible) return;
+      const key = keyOf.get(o.material) || 'decal';
+      if (key === 'decal') this.decalProto = o.material;
+      push(key, bake(o.geometry, o.matrixWorld));
+    });
+    this.body = [...lists.entries()].map(([key, gs]) => [key, mergeGeometries(gs, false)]);
+    gsDispose(lists);
+    // tekstury szablonu (lakier, numer) nie sa uzywane - kazde auto ma wlasne
+    src.mats.paint.map?.dispose();
+    this.decalProto?.map?.dispose();
+    // kola: opona / felga (beczka + szprychy + nakretka) wzgledem obrotu; tarcza + zacisk wzgledem skretu
+    const inv = new THREE.Matrix4();
+    const rel = new THREE.Matrix4();
+    this.wheels = src.wheels.map((w) => {
+      const tyre = [], rim = [], brake = [];
+      inv.copy(w.spin.matrixWorld).invert();
+      w.spin.traverse((o) => {
+        if (!o.isMesh || o === w.blurDisc) return;
+        rel.multiplyMatrices(inv, o.matrixWorld);
+        (o.material === src.mats.tyre ? tyre : rim).push(bake(o.geometry, rel));
+      });
+      inv.copy(w.steer.matrixWorld).invert();
+      for (const o of w.steer.children) {
+        if (!o.isMesh) continue;
+        rel.multiplyMatrices(inv, o.matrixWorld);
+        brake.push(bake(o.geometry, rel));
+      }
+      return {
+        x: w.group.position.x, z: w.group.position.z, radius: w.radius,
+        tyre: mergeGeometries(tyre, false), rim: mergeGeometries(rim, false), brake: mergeGeometries(brake, false),
+      };
+    });
+  }
+}
+
+function gsDispose(lists) {
+  for (const gs of lists.values()) gs.forEach((g) => g.dispose());
+}
+
+export class OpponentCar {
+  /** paintHex - kolor lakieru, number - numer startowy */
+  constructor(tpl, { paint = 0x1747a6, number = 1, accent = null } = {}) {
+    this.tpl = tpl;
+    this.cfg = tpl.cfg;
+    this.root = new THREE.Group();
+    this.root.name = 'opponent';
+    const M = tpl.mats;
+    this.own = {
+      paint: new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: liveryTexture(paint, 0.5, accent), metalness: 0.25, roughness: 0.4, clearcoat: 0.75, clearcoatRoughness: 0.14, envMapIntensity: 0.75 }),
+      paintPlain: new THREE.MeshPhysicalMaterial({ color: paint, metalness: 0.25, roughness: 0.4, clearcoat: 0.75, clearcoatRoughness: 0.14, envMapIntensity: 0.75 }),
+      tail: M.tail.clone(),
+      decal: new THREE.MeshStandardMaterial({ map: decalTexture(number, 0.5), roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -4, transparent: true, alphaTest: 0.1 }),
+    };
+    for (const [key, geo] of tpl.body) {
+      const mat = this.own[key] || M[key];
+      const m = new THREE.Mesh(geo, mat);
+      m.castShadow = !mat.transparent;
+      m.receiveShadow = true;
+      this.root.add(m);
+    }
+    this.wheels = tpl.wheels.map((w) => {
+      const group = new THREE.Group();
+      const steer = new THREE.Group();
+      const spin = new THREE.Group();
+      group.position.set(w.x, 0, w.z);
+      group.add(steer);
+      steer.add(spin);
+      const tyre = new THREE.Mesh(w.tyre, M.tyre);
+      tyre.castShadow = true;
+      spin.add(tyre, new THREE.Mesh(w.rim, M.rim));
+      steer.add(new THREE.Mesh(w.brake, M.disc));
+      this.root.add(group);
+      return { group, steer, spin };
+    });
+  }
+
+  update(v, pos, quat) {
+    this.root.position.copy(pos);
+    this.root.quaternion.copy(quat);
+    for (let k = 0; k < 4; k++) {
+      const pw = v.wheels[k];
+      const w = this.wheels[k];
+      w.group.position.y = -pw.length;
+      w.steer.rotation.y = pw.steer;
+      w.spin.rotation.x = pw.spin;
+    }
+    const braking = v.telemetry.brake > 0.05;
+    this.own.tail.emissiveIntensity = braking ? 3.5 : 0.6;
+  }
+
+  dispose() {
+    for (const m of Object.values(this.own)) {
+      m.map?.dispose();
+      m.dispose();
+    }
   }
 }

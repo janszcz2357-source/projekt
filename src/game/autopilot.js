@@ -8,7 +8,7 @@
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 export class Autopilot {
-  constructor(track, vehicle, { pace = 0.9, consistency = 0 } = {}) {
+  constructor(track, vehicle, { pace = 0.9, consistency = 0, random = Math.random } = {}) {
     this.track = track;
     this.vehicle = vehicle;
     this.pace = pace;
@@ -18,6 +18,7 @@ export class Autopilot {
     this.speedCap = Infinity;
     this.consistency = consistency; // amplituda wolnozmiennego rozrzutu tempa (np. 0.015 = +-1.5%)
     this._noise = 0;
+    this._rand = random;
     this._noiseT = 0;
     this._steer = 0;
     this._thr = 0;
@@ -42,7 +43,9 @@ export class Autopilot {
     if (ml < 3) { mx = fx; mz = fz; } else { mx /= ml; mz /= ml; }
 
     // przesuniecie od linii (wyprzedzanie/unikanie) - plynna zmiana toru jazdy, w granicach toru
-    this.offset += clamp(this.offsetTarget - this.offset, -2.2 * dt, 2.2 * dt);
+    const oLo = -t.wR[i] + 1.35 - t.raceLat[i], oHi = t.wL[i] - 1.35 - t.raceLat[i];
+    this.offset += clamp(clamp(this.offsetTarget, oLo, oHi) - this.offset, -2.2 * dt, 2.2 * dt);
+    this.offset = clamp(this.offset, Math.min(0, oLo), Math.max(0, oHi)); // bez "dryfu" poza tor
     const latTarget = clamp(t.raceLat[i] + this.offset, -t.wR[i] + 1.35, t.wL[i] - 1.35);
     // blad boczny wzgledem linii wyscigowej (+ = auto na lewo od linii)
     const eLat = d.lateral - latTarget;
@@ -84,13 +87,13 @@ export class Autopilot {
     // rozrzut tempa (kierowcy nie jezdza idealnie powtarzalnie)
     if (this.consistency > 0) {
       this._noiseT -= dt;
-      if (this._noiseT <= 0) { this._noiseT = 2 + Math.random() * 3; this._noiseTarget = (Math.random() * 2 - 1) * this.consistency; }
+      if (this._noiseT <= 0) { this._noiseT = 2 + this._rand() * 3; this._noiseTarget = (this._rand() * 2 - 1) * this.consistency; }
       this._noise += ((this._noiseTarget || 0) - this._noise) * Math.min(1, dt * 0.5);
     }
     vt *= this.pace * (1 + this._noise);
-    // poza linia wyscigowa: ciasniejszy luk -> wolniej w zakretach
+    // poza linia wyscigowa: luk o mniejszym promieniu (R - d) -> v ~ sqrt(1 - d k), plus zapas
     const offLine = Math.abs(latTarget - t.raceLat[i]);
-    vt *= 1 - Math.min(0.14, offLine * t.raceCurv[t.idx(i + ahead)] * 4);
+    vt *= 1 - Math.min(0.09, offLine * t.raceCurv[t.idx(i + ahead)] * 0.8);
     // ruch na torze (auto z przodu)
     vt = Math.min(vt, this.speedCap);
     // poza linia - zwolnij

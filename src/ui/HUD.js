@@ -14,7 +14,9 @@ export class HUD {
       leds: $('hud-leds'), rpm: $('hud-rpm'), speed: $('hud-speed'), unit: $('hud-unit'), gear: $('hud-gear'),
       rpmnum: $('hud-rpmnum'), gbx: $('hud-gbx'), cam: $('hud-cam'), g: $('hud-g'), msg: $('hud-msg'),
       lights: $('hud-lights'), fps: $('hud-fps'), hint: $('hud-hint'),
+      race: $('hud-race'), pos: $('hud-pos'), posN: $('hud-posn'), rlap: $('hud-rlap'), tower: $('hud-tower'),
     };
+    this._towerRows = [];
     this.leds = [];
     for (let i = 0; i < 12; i++) {
       const d = document.createElement('i');
@@ -45,6 +47,56 @@ export class HUD {
 
   setMode(text) {
     this.el.mode.textContent = text;
+  }
+
+  /** panel wyscigu (pozycja, okrazenie, wieza czasow) - race = null ukrywa */
+  setRace(race) {
+    const E = this.el;
+    E.race.classList.toggle('hidden', !race);
+    E.tower.classList.toggle('hidden', !race);
+    this.root.classList.toggle('racing', !!race);
+    this._cache.lapLabel = null;
+    if (!race) return;
+    E.tower.innerHTML = '';
+    this._towerRows = race.cars.map(() => {
+      const row = document.createElement('div');
+      row.className = 'tw';
+      row.innerHTML = '<span class="p"></span><span class="n"></span><span class="d"></span><span class="g"></span>';
+      E.tower.appendChild(row);
+      return row;
+    });
+    this.updateRace(race);
+  }
+
+  updateRace(race) {
+    const E = this.el;
+    const me = race.player;
+    this._set('pos', E.pos, String(me.position));
+    this._set('posN', E.posN, '/' + race.cars.length);
+    this._set('rlap', E.rlap, `${race.currentLap(me)}/${race.laps}`);
+    const leader = race.order[0];
+    race.order.forEach((c, k) => {
+      const row = this._towerRows[k];
+      if (!row) return;
+      const [p, n, d, g] = row.children;
+      const key = 'tw' + k;
+      const name = c.isPlayer ? 'TY' : c.name;
+      let gap = '';
+      if (k === 0) gap = c.finished ? 'META' : race.started ? `OKR. ${race.currentLap(c)}` : '';
+      else {
+        const gp = race.gap(c, leader);
+        gap = gp.laps > 0 ? `+${gp.laps} okr.` : gp.time != null ? `+${gp.time.toFixed(1)}` : '';
+      }
+      const txt = `${k + 1}|${c.number}|${name}|${gap}|${c.isPlayer}|${c.finished}`;
+      if (this._cache[key] === txt) return;
+      this._cache[key] = txt;
+      p.textContent = k + 1;
+      n.textContent = c.number;
+      n.style.background = '#' + (c.isPlayer ? 0x33d1ff : c.paint ?? 0x888888).toString(16).padStart(6, '0');
+      d.textContent = name;
+      g.textContent = gap;
+      row.className = 'tw' + (c.isPlayer ? ' me' : '') + (c.finished ? ' fin' : '');
+    });
   }
 
   message(text, sub = '', ms = 2200, color = '') {

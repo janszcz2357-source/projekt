@@ -65,7 +65,8 @@ export class Minimap {
     });
   }
 
-  draw(carPos, carHeading, ghost = null) {
+  /** others - modele rywali (OpponentCar: car.vehicle.pos, car.paint) */
+  draw(carPos, carHeading, ghost = null, others = null) {
     const ctx = this.ctx;
     const W = this.canvas.width, H = this.canvas.height;
     ctx.clearRect(0, 0, W, H);
@@ -128,6 +129,19 @@ export class Minimap {
       ctx.restore();
     };
     if (ghost) drawCar(ghost, 0, 'rgba(160,120,255,0.8)', 4 * lw);
+    if (others) {
+      const r = (this.rotate ? 3.2 : 4.6) * lw;
+      ctx.lineWidth = 1.2 * lw;
+      ctx.strokeStyle = '#000';
+      for (const o of others) {
+        const p = o.car.vehicle.pos;
+        ctx.fillStyle = o._mmColor ||= '#' + (o.car.paint ?? 0xffffff).toString(16).padStart(6, '0');
+        ctx.beginPath();
+        ctx.arc(p.x, p.z, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
     drawCar(carPos, carHeading, '#33d1ff', (this.rotate ? 4 : 6) * lw);
     ctx.restore();
   }

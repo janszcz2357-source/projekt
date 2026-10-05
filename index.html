@@ -28,6 +28,11 @@
             <div><span class="lbl">REKORD</span><b id="hud-record">–:––.–––</b></div>
           </div>
           <div id="hud-invalid" class="invalid hidden">OKRĄŻENIE NIEWAŻNE</div>
+          <div id="hud-race" class="race-row hidden">
+            <div><span class="lbl">POZYCJA</span><b id="hud-pos">–</b><small id="hud-posn">/–</small></div>
+            <div><span class="lbl">OKRĄŻENIE</span><b id="hud-rlap">–</b></div>
+          </div>
+          <div id="hud-tower" class="tower hidden"></div>
         </div>
         <div class="hud-tr panel">
           <canvas id="minimap" width="240" height="240"></canvas>
@@ -77,8 +82,16 @@
               <div class="seg" id="mode-seg">
                 <button data-mode="practice" class="on">Trening</button>
                 <button data-mode="timeattack">Time attack</button>
+                <button data-mode="race">Wyścig</button>
+                <button data-mode="career">Kariera</button>
               </div>
               <p class="mode-desc" id="mode-desc"></p>
+              <div id="race-opts" class="race-opts hidden">
+                <label>Rywale<select id="ro-opp"></select></label>
+                <label>Okrążenia<select id="ro-laps"></select></label>
+                <label>Poziom AI<select id="ro-diff"></select></label>
+                <label>Pole startowe<select id="ro-grid"></select></label>
+              </div>
             </div>
             <div>
               <h2>Samochód</h2>
@@ -171,6 +184,52 @@
           <h1>O projekcie</h1>
           <div class="about" id="about-text"></div>
           <div class="menu-actions"><button id="btn-about-close" class="primary">Zamknij</button></div>
+        </div>
+      </div>
+
+      <!-- ===================== WYNIKI WYSCIGU ===================== -->
+      <div id="results" class="overlay hidden">
+        <div class="menu-wrap">
+          <h1 id="res-title">Wyniki wyścigu</h1>
+          <p class="mode-desc" id="res-sub"></p>
+          <div class="res-table-wrap"><table class="res-table" id="res-table"></table></div>
+          <p class="note" id="res-note"></p>
+          <div id="res-career" class="res-career hidden"></div>
+          <div class="menu-actions">
+            <button id="btn-res-next" class="primary">Dalej</button>
+            <button id="btn-res-restart">Powtórz wyścig</button>
+            <button id="btn-res-menu">Menu</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================== KARIERA ===================== -->
+      <div id="career" class="overlay hidden">
+        <div class="menu-wrap">
+          <div class="career-head">
+            <h1>Kariera</h1>
+            <div class="credits"><span class="lbl">KREDYTY</span><b id="cr-credits">0</b></div>
+          </div>
+          <div class="career-cols">
+            <div>
+              <h2>Serie</h2>
+              <div id="cr-series" class="cr-series"></div>
+              <h2>Następna runda</h2>
+              <div id="cr-next" class="cr-next"></div>
+            </div>
+            <div>
+              <h2>Klasyfikacja</h2>
+              <div id="cr-standings" class="cr-standings"></div>
+              <h2>Warsztat</h2>
+              <div id="cr-shop" class="cr-shop"></div>
+            </div>
+          </div>
+          <div class="menu-actions">
+            <button id="btn-cr-race" class="primary">START RUNDY</button>
+            <button id="btn-cr-back">Wróć do menu</button>
+            <label class="chk"><input type="checkbox" id="cr-short" /> Krótkie wyścigi (połowa okrążeń)</label>
+            <button id="btn-cr-reset">Nowa kariera</button>
+          </div>
         </div>
       </div>
 

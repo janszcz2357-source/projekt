@@ -28,9 +28,14 @@ export const DEFAULT_SETTINGS = {
   paint: 'rosso',
   lastTrack: 'monza',
   lastMode: 'practice',
+  // wyscig pojedynczy
+  raceOpponents: 9,
+  raceLaps: 3,
+  raceDifficulty: 'medium', // easy | medium | hard
+  raceGrid: 'back', // back | middle | pole | quali
 };
 
-function safeGet(key) {
+export function safeGet(key) {
   try {
     const s = window.localStorage.getItem(key);
     return s ? JSON.parse(s) : null;
@@ -39,7 +44,7 @@ function safeGet(key) {
   }
 }
 
-function safeSet(key, value) {
+export function safeSet(key, value) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
     return true;

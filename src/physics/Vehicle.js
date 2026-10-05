@@ -153,6 +153,9 @@ export class Vehicle {
     this.settings = { absLevel: 2, tcLevel: 2, autoGearbox: true, brakeBias: null };
     this.shiftRequests = 0; // +n gora / -n dol (z klawiatury/pada)
     this.holdBrakes = false;
+    // slipstream za innym autem (ustawiane przez wyscig): ulamek redukcji oporu i utraty docisku
+    this.draft = 0;
+    this.dirtyAir = 0;
 
     this.trackIndex = 0;
     this.time = 0;
@@ -428,10 +431,10 @@ export class Vehicle {
     const vF = this.vel.dot(_az);
     if (speed > 0.1) {
       const q = 0.5 * A.airDensity;
-      const drag = _f.copy(this.vel).multiplyScalar(-q * A.dragArea * speed);
+      const drag = _f.copy(this.vel).multiplyScalar(-q * A.dragArea * (1 - this.draft) * speed);
       _p.copy(this.pos).addScaledVector(_ay, A.dragHeight);
       this._addForceAt(drag, _p);
-      const vf2 = vF * vF;
+      const vf2 = vF * vF * (1 - this.dirtyAir);
       const a = cfg.cgToFrontAxle;
       const b = cfg.wheelbase - a;
       _f.copy(_ay).multiplyScalar(-q * A.liftAreaFront * vf2);
