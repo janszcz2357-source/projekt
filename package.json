@@ -1,0 +1,22 @@
+{
+  "name": "apex-gt-simracing",
+  "version": "1.0.0",
+  "description": "Przegladarkowa gra simracingowa 3D: samochod GT, fizyka 120 Hz, tory Monza, Spa-Francorchamps i Silverstone.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "build:tracks": "node tools/build-tracks.mjs",
+    "test": "node tests/physics.test.mjs",
+    "test:browser": "node tests/browser-smoke.mjs"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0",
+    "vite": "^7.1.0"
+  }
+}
