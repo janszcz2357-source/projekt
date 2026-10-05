@@ -149,6 +149,7 @@ export class Vehicle {
     this.input = { steer: 0, throttle: 0, brake: 0, handbrake: 0 };
     this.settings = { absLevel: 2, tcLevel: 2, autoGearbox: true, brakeBias: null };
     this.shiftRequests = 0; // +n gora / -n dol (z klawiatury/pada)
+    this.holdBrakes = false;
 
     this.trackIndex = 0;
     this.time = 0;
@@ -248,6 +249,17 @@ export class Vehicle {
 
     let throttle = inp.throttle;
     let brake = inp.brake;
+
+    if (this.holdBrakes) {
+      // procedura startowa: auto trzymane na hamulcach, mozna podniesc obroty
+      this._reverseTimer = 0;
+      this._throttleCmd = clamp(throttle, 0, 1);
+      this._brakeCmd = 1;
+      const maxSteer0 = this.cfg.steering.maxWheelAngleDeg * DEG;
+      this.steerAngle = -clamp(inp.steer, -1, 1) * maxSteer0;
+      this._applySteer(this.steerAngle);
+      return;
+    }
 
     if (this.settings.autoGearbox) {
       // wsteczny: przytrzymanie hamulca w miejscu

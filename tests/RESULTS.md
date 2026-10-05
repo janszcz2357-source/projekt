@@ -1,6 +1,6 @@
 # Wyniki testow fizyki (node tests/physics.test.mjs)
 
-Data: 2026-10-05T14:26:58.663Z  ·  krok fizyki 120 Hz, 4 podkroki  ·  wynik: wszystkie OK
+Data: 2026-10-05T15:06:20.854Z  ·  krok fizyki 120 Hz, 4 podkroki  ·  wynik: wszystkie OK
 
 
 ## 1. Spoczynek: rozklad obciazen i stabilnosc
@@ -102,19 +102,19 @@ Data: 2026-10-05T14:26:58.663Z  ·  krok fizyki 120 Hz, 4 podkroki  ·  wynik: w
 - ✅ Autodromo Nazionale Monza: uderzenia w bariery: **0.000**  (oczekiwane 0–0)
 - ✅ Autodromo Nazionale Monza: brak NaN: **0.000**  (oczekiwane 0–0)
 - Autodromo Nazionale Monza: V-max: **256.8** km/h
-- Autodromo Nazionale Monza: czas symulacji / czas obliczen: **500.8** x czasu rzeczywistego
+- Autodromo Nazionale Monza: czas symulacji / czas obliczen: **496.8** x czasu rzeczywistego
 - ✅ Circuit de Spa-Francorchamps: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:50.435, okr. 2 (lotne) 2:48.459
 - ✅ Circuit de Spa-Francorchamps: okrazenie lotne wazne: **1.000**  (oczekiwane 1–1)
 - ✅ Circuit de Spa-Francorchamps: uderzenia w bariery: **0.000**  (oczekiwane 0–0)
 - ✅ Circuit de Spa-Francorchamps: brak NaN: **0.000**  (oczekiwane 0–0)
 - Circuit de Spa-Francorchamps: V-max: **246.3** km/h
-- Circuit de Spa-Francorchamps: czas symulacji / czas obliczen: **529.5** x czasu rzeczywistego
+- Circuit de Spa-Francorchamps: czas symulacji / czas obliczen: **537.1** x czasu rzeczywistego
 - ✅ Silverstone Circuit: ukonczone okrazenia: **2.000**  (oczekiwane 2–2) — okr. 1 (start z miejsca) 2:38.017, okr. 2 (lotne) 2:35.922
 - ✅ Silverstone Circuit: okrazenie lotne wazne: **1.000**  (oczekiwane 1–1)
 - ✅ Silverstone Circuit: uderzenia w bariery: **0.000**  (oczekiwane 0–0)
 - ✅ Silverstone Circuit: brak NaN: **0.000**  (oczekiwane 0–0)
 - Silverstone Circuit: V-max: **234.6** km/h
-- Silverstone Circuit: czas symulacji / czas obliczen: **549.9** x czasu rzeczywistego
+- Silverstone Circuit: czas symulacji / czas obliczen: **543.1** x czasu rzeczywistego
 
 ## Okrazenia autopilota
 

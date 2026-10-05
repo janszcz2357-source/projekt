@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Apex GT – Simracing</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ff3b30'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='900' font-size='15' text-anchor='middle' fill='white'%3EGT%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="view"></canvas>
+
+      <!-- ===================== HUD ===================== -->
+      <div id="hud" class="hidden">
+        <div class="hud-tl panel">
+          <div class="lap-row"><span class="lbl">OKRĄŻENIE</span><span id="hud-lapno">–</span><span id="hud-mode" class="chip">TRENING</span></div>
+          <div class="cur-time" id="hud-cur">–:––.–––</div>
+          <div class="delta" id="hud-delta">&nbsp;</div>
+          <div class="sectors">
+            <div class="sec" id="hud-s1"><span>S1</span><b>––.–––</b></div>
+            <div class="sec" id="hud-s2"><span>S2</span><b>––.–––</b></div>
+            <div class="sec" id="hud-s3"><span>S3</span><b>––.–––</b></div>
+          </div>
+          <div class="times">
+            <div><span class="lbl">OSTATNIE</span><b id="hud-last">–:––.–––</b></div>
+            <div><span class="lbl">NAJLEPSZE</span><b id="hud-best">–:––.–––</b></div>
+            <div><span class="lbl">REKORD</span><b id="hud-record">–:––.–––</b></div>
+          </div>
+          <div id="hud-invalid" class="invalid hidden">OKRĄŻENIE NIEWAŻNE</div>
+        </div>
+        <div class="hud-tr panel">
+          <canvas id="minimap" width="240" height="240"></canvas>
+        </div>
+        <div class="hud-bottom">
+          <div class="pedals panel">
+            <div class="pedal"><div class="bar brk" id="hud-brk"></div></div>
+            <div class="pedal"><div class="bar thr" id="hud-thr"></div></div>
+            <div class="assists">
+              <div id="hud-abs" class="assist">ABS</div>
+              <div id="hud-tc" class="assist">TC</div>
+            </div>
+          </div>
+          <div class="dash panel">
+            <div class="shift-lights" id="hud-leds"></div>
+            <div class="rpm-bar"><div id="hud-rpm"></div><div class="redline"></div></div>
+            <div class="dash-main">
+              <div class="speed"><b id="hud-speed">0</b><span id="hud-unit">km/h</span></div>
+              <div class="gear" id="hud-gear">N</div>
+              <div class="rpm-num"><b id="hud-rpmnum">0</b><span>obr/min</span></div>
+            </div>
+            <div class="dash-sub"><span id="hud-gbx">AUTO</span><span id="hud-cam">Za samochodem</span><span id="hud-g">0.0 g</span></div>
+          </div>
+        </div>
+        <div id="hud-msg" class="center-msg"></div>
+        <div id="hud-lights" class="start-lights hidden">
+          <div class="sl"></div><div class="sl"></div><div class="sl"></div><div class="sl"></div><div class="sl"></div>
+        </div>
+        <div id="hud-fps" class="fps hidden">0 FPS</div>
+        <div id="hud-hint" class="hint"></div>
+      </div>
+
+      <!-- ===================== MENU ===================== -->
+      <div id="menu" class="overlay">
+        <div class="menu-wrap">
+          <header class="brand">
+            <div class="logo">APEX<span>GT</span></div>
+            <div class="tag">simracing · fizyka 120 Hz · prawdziwe tory</div>
+          </header>
+          <section>
+            <h2>Tor</h2>
+            <div id="track-list" class="track-list"></div>
+          </section>
+          <section class="row2">
+            <div>
+              <h2>Tryb</h2>
+              <div class="seg" id="mode-seg">
+                <button data-mode="practice" class="on">Trening</button>
+                <button data-mode="timeattack">Time attack</button>
+              </div>
+              <p class="mode-desc" id="mode-desc"></p>
+            </div>
+            <div>
+              <h2>Samochód</h2>
+              <div class="car-card">
+                <b>Apex GT-R</b>
+                <span>GT3 · V8 4.0 · 512 KM · 1300 kg · napęd na tył</span>
+                <div class="paints" id="paint-list"></div>
+              </div>
+            </div>
+          </section>
+          <div class="menu-actions">
+            <button id="btn-start" class="primary">START</button>
+            <button id="btn-settings">Ustawienia</button>
+            <button id="btn-controls">Sterowanie</button>
+            <button id="btn-about">O projekcie</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================== PAUZA ===================== -->
+      <div id="pause" class="overlay hidden">
+        <div class="menu-wrap narrow">
+          <h1>PAUZA</h1>
+          <div class="menu-actions vertical">
+            <button id="btn-resume" class="primary">Wznów</button>
+            <button id="btn-restart">Restart sesji</button>
+            <button id="btn-reset-car">Ustaw samochód na torze</button>
+            <button id="btn-p-settings">Ustawienia</button>
+            <button id="btn-p-controls">Sterowanie</button>
+            <button id="btn-quit">Wyjdź do menu</button>
+          </div>
+          <div id="lap-list" class="lap-list"></div>
+        </div>
+      </div>
+
+      <!-- ===================== USTAWIENIA ===================== -->
+      <div id="settings" class="overlay hidden">
+        <div class="menu-wrap">
+          <h1>Ustawienia</h1>
+          <div class="settings-grid" id="settings-grid"></div>
+          <div class="menu-actions">
+            <button id="btn-settings-close" class="primary">Zamknij</button>
+            <button id="btn-settings-default">Przywróć domyślne</button>
+            <button id="btn-records-clear">Usuń rekordy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================== STEROWANIE ===================== -->
+      <div id="controls" class="overlay hidden">
+        <div class="menu-wrap">
+          <h1>Sterowanie</h1>
+          <div class="controls-grid">
+            <div>
+              <h2>Klawiatura</h2>
+              <table>
+                <tr><td>Gaz</td><td><kbd>↑</kbd> / <kbd>W</kbd></td></tr>
+                <tr><td>Hamulec (wsteczny – przytrzymaj w miejscu, tryb auto)</td><td><kbd>↓</kbd> / <kbd>S</kbd></td></tr>
+                <tr><td>Skręt</td><td><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd></td></tr>
+                <tr><td>Bieg w górę / w dół</td><td><kbd>E</kbd> / <kbd>Q</kbd> (lub <kbd>Shift</kbd> / <kbd>Ctrl</kbd>)</td></tr>
+                <tr><td>Hamulec ręczny</td><td><kbd>Spacja</kbd></td></tr>
+                <tr><td>Kamera</td><td><kbd>C</kbd></td></tr>
+                <tr><td>Widok do tyłu</td><td><kbd>B</kbd> (przytrzymaj)</td></tr>
+                <tr><td>Ustaw auto na torze (reset)</td><td><kbd>R</kbd></td></tr>
+                <tr><td>Pauza</td><td><kbd>Esc</kbd> / <kbd>P</kbd></td></tr>
+              </table>
+            </div>
+            <div>
+              <h2>Pad (Xbox / PlayStation)</h2>
+              <table>
+                <tr><td>Skręt</td><td>lewa gałka</td></tr>
+                <tr><td>Gaz / hamulec</td><td>RT / LT (R2 / L2) – analogowo</td></tr>
+                <tr><td>Bieg w górę / w dół</td><td>RB / LB (lub A / X)</td></tr>
+                <tr><td>Hamulec ręczny</td><td>B (○)</td></tr>
+                <tr><td>Kamera</td><td>Y (△)</td></tr>
+                <tr><td>Widok do tyłu</td><td>krzyżak w dół</td></tr>
+                <tr><td>Reset auta</td><td>View / Share</td></tr>
+                <tr><td>Pauza</td><td>Menu / Options</td></tr>
+              </table>
+              <p class="note" id="pad-status">Pad: nie wykryto (naciśnij dowolny przycisk na padzie).</p>
+            </div>
+          </div>
+          <div class="menu-actions"><button id="btn-controls-close" class="primary">Zamknij</button></div>
+        </div>
+      </div>
+
+      <!-- ===================== O PROJEKCIE ===================== -->
+      <div id="about" class="overlay hidden">
+        <div class="menu-wrap">
+          <h1>O projekcie</h1>
+          <div class="about" id="about-text"></div>
+          <div class="menu-actions"><button id="btn-about-close" class="primary">Zamknij</button></div>
+        </div>
+      </div>
+
+      <div id="loading" class="overlay hidden">
+        <div class="loader">
+          <div class="logo">APEX<span>GT</span></div>
+          <div class="spinner"></div>
+          <div id="loading-text">Ładowanie…</div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

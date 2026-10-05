@@ -22,7 +22,7 @@ export const TRACKS = [
     env: {
       trees: 'deciduous', treeDensity: 1.0, treeBand: [18, 420],
       grass: [0.29, 0.40, 0.17], ground: [0.30, 0.36, 0.20],
-      sunElevation: 48, sunAzimuth: 210, fog: 0.00045, haze: [0.74, 0.80, 0.86],
+      sunElevation: 48, sunAzimuth: 210, fog: 0.00042, haze: [0.72, 0.79, 0.86], zenith: [0.30, 0.52, 0.85], tint: [1.0, 0.98, 0.9],
     },
     pitSide: -1, // -1 = prawa strona (patrzac w kierunku jazdy)
     grandstands: [[0.985, 1], [0.08, 1], [0.13, -1], [0.86, 1], [0.6, 1]],
@@ -45,7 +45,7 @@ export const TRACKS = [
     env: {
       trees: 'conifer', treeDensity: 1.25, treeBand: [16, 520],
       grass: [0.24, 0.36, 0.15], ground: [0.25, 0.33, 0.18],
-      sunElevation: 38, sunAzimuth: 160, fog: 0.0006, haze: [0.70, 0.76, 0.82],
+      sunElevation: 38, sunAzimuth: 160, fog: 0.00055, haze: [0.70, 0.76, 0.82], zenith: [0.28, 0.47, 0.78], tint: [0.86, 0.92, 0.86],
     },
     pitSide: -1,
     grandstands: [[0.99, 1], [0.03, -1], [0.12, 1], [0.95, -1]],
@@ -66,9 +66,9 @@ export const TRACKS = [
       straightWidth: 10, innerWidth: 8, outerBase: 14, outerPerKmh: 0.10,
     },
     env: {
-      trees: 'mixed', treeDensity: 0.35, treeBand: [40, 600],
+      trees: 'mixed', treeDensity: 0.62, treeBand: [35, 650],
       grass: [0.30, 0.42, 0.18], ground: [0.33, 0.40, 0.22],
-      sunElevation: 34, sunAzimuth: 200, fog: 0.0005, haze: [0.72, 0.78, 0.85],
+      sunElevation: 34, sunAzimuth: 200, fog: 0.0005, haze: [0.73, 0.79, 0.86], zenith: [0.32, 0.53, 0.84], tint: [1.02, 1.02, 0.92],
     },
     pitSide: -1,
     grandstands: [[0.985, 1], [0.05, 1], [0.45, 1], [0.55, -1], [0.75, 1]],

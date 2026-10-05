@@ -547,6 +547,13 @@ export class Track {
     return out;
   }
 
+  /** rzut punktu na tor: { index, t, lateral } (nowy obiekt) */
+  project(x, z, hint = -1) {
+    if (hint < 0 || hint >= this.n) hint = this.locateGlobal(x, z);
+    const out = { index: 0, t: 0, lateral: 0 };
+    return this._project(x, z, hint, 6, out);
+  }
+
   /** indeks probki toru dla pozycji (z ciagloscia, hint < 0 => wyszukiwanie globalne) */
   locate(x, z, hint = -1) {
     if (hint < 0 || hint >= this.n) hint = this.locateGlobal(x, z);
