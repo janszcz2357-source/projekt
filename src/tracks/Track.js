@@ -547,11 +547,86 @@ export class Track {
     return out;
   }
 
+  /**
+   * Mapa najblizszych probek toru na siatce (transformata odleglosci, 2 przebiegi 8-sasiedztwa).
+   * Daje szybka i poprawna "podpowiedz" dla dowolnego punktu terenu (zamiast przeszukiwania
+   * pustych komorek siatki dla punktow daleko od toru).
+   */
+  _buildNearestMap() {
+    const T = this.terrain;
+    const cell = 20;
+    const x0 = T.x0 - 200, z0 = -(T.y0 + (T.ny - 1) * T.cell) - 200;
+    const nx = Math.ceil(((T.nx - 1) * T.cell + 400) / cell) + 1;
+    const nz = Math.ceil(((T.ny - 1) * T.cell + 400) / cell) + 1;
+    const idx = new Int32Array(nx * nz).fill(-1);
+    const dist = new Float32Array(nx * nz).fill(Infinity);
+    const cx = (i) => x0 + i * cell, cz = (j) => z0 + j * cell;
+    for (let k = 0; k < this.n; k++) {
+      const i = Math.round((this.px[k] - x0) / cell), j = Math.round((this.pz[k] - z0) / cell);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const ii = i + di, jj = j + dj;
+        if (ii < 0 || jj < 0 || ii >= nx || jj >= nz) continue;
+        const q = jj * nx + ii;
+        const d = Math.hypot(cx(ii) - this.px[k], cz(jj) - this.pz[k]);
+        if (d < dist[q]) { dist[q] = d; idx[q] = k; }
+      }
+    }
+    const relax = (q, ii, jj) => {
+      const k = idx[q];
+      if (k < 0 || ii < 0 || jj < 0 || ii >= nx || jj >= nz) return;
+      const r = jj * nx + ii;
+      const d = Math.hypot(cx(ii) - this.px[k], cz(jj) - this.pz[k]);
+      if (d < dist[r]) { dist[r] = d; idx[r] = k; }
+    };
+    for (let pass = 0; pass < 2; pass++) {
+      for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+        const q = j * nx + i;
+        relax(q, i + 1, j); relax(q, i, j + 1); relax(q, i + 1, j + 1); relax(q, i - 1, j + 1);
+      }
+      for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) {
+        const q = j * nx + i;
+        relax(q, i - 1, j); relax(q, i, j - 1); relax(q, i - 1, j - 1); relax(q, i + 1, j - 1);
+      }
+    }
+    this._nearest = { x0, z0, cell, nx, nz, idx };
+  }
+
+  /** szybka podpowiedz najblizszej probki toru dla punktu (x, z) */
+  nearestHint(x, z) {
+    if (!this._nearest) this._buildNearestMap();
+    const N = this._nearest;
+    const i = Math.round((x - N.x0) / N.cell), j = Math.round((z - N.z0) / N.cell);
+    if (i < 0 || j < 0 || i >= N.nx || j >= N.nz) return this.locateGlobal(x, z);
+    const k = N.idx[j * N.nx + i];
+    return k >= 0 ? k : this.locateGlobal(x, z);
+  }
+
   /** rzut punktu na tor: { index, t, lateral } (nowy obiekt) */
   project(x, z, hint = -1) {
-    if (hint < 0 || hint >= this.n) hint = this.locateGlobal(x, z);
     const out = { index: 0, t: 0, lateral: 0 };
-    return this._project(x, z, hint, 6, out);
+    if (hint >= 0 && hint < this.n) return this._project(x, z, hint, 10, out);
+    if (!this._nearest) this._buildNearestMap();
+    const N = this._nearest;
+    const ci = Math.round((x - N.x0) / N.cell), cj = Math.round((z - N.z0) / N.cell);
+    if (ci < 1 || cj < 1 || ci >= N.nx - 1 || cj >= N.nz - 1) return this._project(x, z, this.locateGlobal(x, z), 10, out);
+    // kandydaci z komorki i sasiadow (rozne fragmenty toru) -> wybierz rzeczywiscie najblizszy
+    const cands = [];
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const k = N.idx[(cj + dj) * N.nx + ci + di];
+      if (k < 0) continue;
+      if (cands.every((c) => { const d = Math.abs(c - k); return Math.min(d, this.n - d) > 16; })) cands.push(k);
+    }
+    if (!cands.length) return this._project(x, z, this.locateGlobal(x, z), 10, out);
+    let best = Infinity;
+    const tmp = { index: 0, t: 0, lateral: 0 };
+    for (const k of cands) {
+      this._project(x, z, k, 10, tmp);
+      const i = tmp.index, j = (i + 1) % this.n;
+      const px = this.px[i] + (this.px[j] - this.px[i]) * tmp.t, pz = this.pz[i] + (this.pz[j] - this.pz[i]) * tmp.t;
+      const d = (px - x) ** 2 + (pz - z) ** 2;
+      if (d < best) { best = d; out.index = tmp.index; out.t = tmp.t; out.lateral = tmp.lateral; }
+    }
+    return out;
   }
 
   /** indeks probki toru dla pozycji (z ciagloscia, hint < 0 => wyszukiwanie globalne) */

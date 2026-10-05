@@ -140,6 +140,54 @@ for (const id of tracks) {
   await waitVisible('menu');
 }
 
+// pomiar czasu w UI (time attack): teleport przed linie mety -> start okrazenia,
+// ponowny teleport -> okrazenie zakonczone jako niewazne (pominiete punkty kontrolne)
+{
+  await page.click('#mode-seg button[data-mode="timeattack"]');
+  await page.click('#btn-start');
+  await waitHidden('loading');
+  await page.waitForTimeout(2500);
+  await shot(String(n++).padStart(2, '0') + '-timeattack-swiatla');
+  const t0 = Date.now();
+  while (Date.now() - t0 < 30000) {
+    if ((await page.evaluate(() => window.__game.state)) === 'running') break;
+    await page.waitForTimeout(250);
+  }
+  const tp = () => page.evaluate(() => {
+    const g = window.__game, t = g.track;
+    const i = t.idx(-16);
+    const sp = t.spawn(i, t.raceLat[i]);
+    g.vehicle.reset(sp.x, sp.z, sp.heading, 45, sp.index);
+    g.timer.prevS = null;
+  });
+  const until = async (fn, ms = 90000) => {
+    const t1 = Date.now();
+    while (Date.now() - t1 < ms) {
+      if (await page.evaluate(fn)) return true;
+      await page.waitForTimeout(300);
+    }
+    return false;
+  };
+  await tp();
+  const lapStarted = await until(() => window.__game.timer.lapActive);
+  await tp();
+  await until(() => window.__game.timer.laps.length > 0);
+  await page.waitForTimeout(1500);
+  const timing = await page.evaluate(() => ({
+    laps: window.__game.timer.laps.map((l) => ({ time: l.time, valid: l.valid, reason: l.reason })),
+    lastText: document.getElementById('hud-last').textContent,
+    msg: document.getElementById('hud-msg').textContent,
+  }));
+  results.timingUI = { lapStarted, ...timing };
+  log('pomiar czasu UI:', JSON.stringify(results.timingUI));
+  await shot(String(n++).padStart(2, '0') + '-timeattack-okrazenie');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(3000);
+  await shot(String(n++).padStart(2, '0') + '-pauza-lista-okrazen');
+  await page.click('#btn-quit');
+  await waitVisible('menu');
+}
+
 // ustawienia: otwarcie, zmiana kilku opcji, zamkniecie
 await page.click('#btn-settings');
 await page.waitForTimeout(300);

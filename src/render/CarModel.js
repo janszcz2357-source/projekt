@@ -537,7 +537,7 @@ export class CarModel {
     // kierownica (ksztalt GT3: obrecz + plaska plyta z wyswietlaczem)
     this.steeringWheel = new THREE.Group();
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.175, 0.024, 10, 28, Math.PI * 1.55), m.black);
-    rim.rotation.z = -Math.PI * 0.275 + Math.PI;
+    rim.rotation.z = -Math.PI * 0.275; // przerwa obreczy na dole
     this.steeringWheel.add(rim);
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.13, 0.03), m.carbon);
     plate.position.y = 0.0;
@@ -663,7 +663,7 @@ export class CarModel {
     if (this.steeringWheel) {
       const lock = (this.cfg.steering.steeringWheelLockDeg * Math.PI) / 180;
       const maxA = (this.cfg.steering.maxWheelAngleDeg * Math.PI) / 180;
-      this.steeringWheel.rotation.z = Math.PI + (v.steerAngle / maxA) * lock * -1;
+      this.steeringWheel.rotation.z = -(v.steerAngle / maxA) * lock;
     }
   }
 

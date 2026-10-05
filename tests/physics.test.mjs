@@ -152,6 +152,28 @@ section('3. Hamowanie ze 100 i 200 km/h (ABS: wyl./2/4)');
   }
 }
 
+// ===================================================================== 3b. stabilnosc hamowania
+section('3b. Stabilnosc hamowania 220-60 km/h z zaburzeniem (lewe kola na kraweznik - mniejsza przyczepnosc)');
+{
+  for (const abs of [2, 0]) {
+    // "mu-split": lewa strona auta (x > 0) jedzie po kraweznikach (grip 0.9) -> rozne sily hamowania
+    const s = new FlatSurface({ typeAt: (x) => (x > 0.3 ? SURF.CURB : SURF.ASPHALT) });
+    const v = car(s, { absLevel: abs, tcLevel: 2 });
+    v.reset(0, 0, 0, 220 / 3.6);
+    let maxYaw = 0, maxBeta = 0;
+    const h0 = 0;
+    run(v, 8, (c) => {
+      c.input.throttle = 0; c.input.brake = 1; c.input.steer = 0;
+      maxYaw = Math.max(maxYaw, Math.abs(c.angVel.y));
+      maxBeta = Math.max(maxBeta, Math.abs(sideslipDeg(c)));
+      return kmh(c) > 60;
+    });
+    const heading = (Math.atan2(2 * (v.quat.w * v.quat.y + v.quat.x * v.quat.z), 1 - 2 * (v.quat.y ** 2 + v.quat.x ** 2)) * 180) / Math.PI - h0;
+    if (abs) check(`hamowanie z roznica przyczepnosci L/P (ABS ${abs}): maks. kat znoszenia`, maxBeta, 0, 3, 'deg', `maks. predkosc odchylenia ${maxYaw.toFixed(3)} rad/s, zmiana kursu ${heading.toFixed(1)} deg (bez korekty kierownica)`);
+    else info(`hamowanie z roznica przyczepnosci L/P (ABS wyl., wszystkie kola zablokowane): maks. kat znoszenia ${maxBeta.toFixed(1)} deg, zmiana kursu ${heading.toFixed(1)} deg - bez ABS auto traci stabilnosc (oczekiwane fizycznie)`, '');
+  }
+}
+
 // ===================================================================== 4. przenoszenie obciazenia
 section('4. Przenoszenie obciazenia (porownanie z m*a*h/L)');
 {
@@ -445,6 +467,52 @@ for (const id of ['monza', 'spa', 'silverstone']) {
   info(`${track.name}: V-max`, vmax, 'km/h');
   info(`${track.name}: czas symulacji / czas obliczen`, simT / (wall / 1000), 'x czasu rzeczywistego');
   lapTable.push({ track: track.name, lap1: fmt(laps[0]?.time), lap2: fmt(fly?.time), sectors: fly?.sectors.map((s) => s?.toFixed(2)).join(' / '), vmax: vmax.toFixed(0), valid: fly?.valid });
+}
+
+// ===================================================================== 11. tylko klawiatura
+section('11. Przejazd tylko klawiatura (wejscia 0/1 przez ten sam filtr skretu/pedalow co u gracza)');
+{
+  // atrapa srodowiska przegladarki dla modulu wejscia
+  globalThis.window ||= { addEventListener() {} };
+  if (!globalThis.navigator?.getGamepads) Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [] }, configurable: true });
+  const { Input } = await import('../src/game/Input.js');
+  for (const id of ['monza', 'spa', 'silverstone']) {
+    const track = loadTrack(id);
+    const v = new Vehicle(GT_CAR, track);
+    Object.assign(v.settings, { absLevel: 2, tcLevel: 2, autoGearbox: true });
+    const sp = track.spawn(track.gridIndex, 0);
+    v.reset(sp.x, sp.z, sp.heading, 0, sp.index);
+    // "mozg" (autopilot) liczy zadane wejscia, ktore zamieniamy na wcisniecia klawiszy co klatke 60 Hz
+    const shadow = { input: {}, pos: v.pos, quat: v.quat, vel: v.vel, angVel: v.angVel, trackIndex: 0, cfg: GT_CAR, forwardSpeed: () => v.forwardSpeed() };
+    const brain = new Autopilot(track, shadow, { pace: 0.88 });
+    const inp = new Input();
+    const timer = new LapTimer(track);
+    const laps = [];
+    timer.on((e) => { if (e.type === 'lap') laps.push(e.lap); });
+    const FRAME = 1 / 60;
+    let t = 0;
+    const imp = v.impactCount;
+    while (laps.length < 2 && t < 500) {
+      shadow.trackIndex = v.trackIndex;
+      brain.update(FRAME);
+      const want = shadow.input;
+      inp.keys.clear();
+      if (want.steer > inp.steer + 0.02) inp.keys.add('ArrowRight');
+      else if (want.steer < inp.steer - 0.02) inp.keys.add('ArrowLeft');
+      if (want.throttle > 0.5) inp.keys.add('ArrowUp');
+      if (want.brake > 0.25) inp.keys.add('ArrowDown');
+      const c = inp.update(FRAME, v);
+      for (let k = 0; k < 2; k++) {
+        v.input.steer = c.steer; v.input.throttle = c.throttle; v.input.brake = c.brake; v.input.handbrake = 0;
+        v.step(DT);
+        timer.update(DT, v);
+        t += DT;
+      }
+    }
+    const fmt = (x) => (x == null ? '-' : `${Math.floor(x / 60)}:${(x % 60).toFixed(3).padStart(6, '0')}`);
+    const valid = laps.filter((l) => l.valid).length;
+    check(`${track.name}: okrazenia z klawiatury (wazne / ukonczone)`, valid, 2, 2, '', `${laps.map((l) => fmt(l.time)).join(', ')}; uderzenia w bariery: ${v.impactCount - imp}`);
+  }
 }
 
 // ===================================================================== raport

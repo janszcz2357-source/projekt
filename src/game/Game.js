@@ -314,6 +314,7 @@ export class Game {
     this.settings.lastTrack = this.trackId;
     saveSettings(this.settings);
     this.autopilot = null;
+    document.activeElement?.blur?.(); // Spacja/Enter nie moga "klikac" przyciskow menu w trakcie jazdy
     this.state = 'countdown';
     this._applyVehicleSettings();
     const t = this.track;
@@ -359,6 +360,7 @@ export class Game {
   resume() {
     if (this.state !== 'paused') return;
     this.state = this._pausedFrom || 'running';
+    document.activeElement?.blur?.();
     this.audio.resume();
     this.stepper.reset();
     this.input.clearEdges();
@@ -434,6 +436,8 @@ export class Game {
     } else if (this.state === 'paused') {
       if (inp.consume('pause')) this.resume();
     } else {
+      // menu: przycisk Start na padzie uruchamia sesje
+      if (inp._padEdges?.has('pause')) this._emit('padStart');
       inp.clearEdges();
     }
 
@@ -492,7 +496,8 @@ export class Game {
         camName: CAMERA_NAMES[cr.mode], fps: this.fps, countdown: this.state === 'countdown',
       });
       const heading = Math.atan2(2 * (this._quat.x * this._quat.z + this._quat.w * this._quat.y), 1 - 2 * (this._quat.x ** 2 + this._quat.y ** 2));
-      this.hud.minimap.draw(this._pos, heading);
+      this._mmFrame = (this._mmFrame || 0) + 1;
+      if (this._mmFrame % 2 === 0) this.hud.minimap.draw(this._pos, heading); // 30 Hz wystarczy
       if (this.state !== 'paused') this.audio.update(v, cr.mode === 'cockpit', dt);
       this._dashTimer -= dt;
       if (cr.mode === 'cockpit' && this._dashTimer <= 0) {

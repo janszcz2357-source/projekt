@@ -144,6 +144,10 @@ export function setupUI(game) {
     refreshRecords();
   });
   game.on('lap', () => refreshRecords());
+  game.on('padStart', () => {
+    const overlays = ['settings', 'controls', 'about', 'loading', 'pause'];
+    if (!$('menu').classList.contains('hidden') && overlays.every((id) => $(id).classList.contains('hidden'))) $('btn-start').click();
+  });
   const renderLapList = () => {
     const el = $('lap-list');
     el.innerHTML = '';

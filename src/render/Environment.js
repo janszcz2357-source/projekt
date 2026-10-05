@@ -142,7 +142,8 @@ export class SunLight {
 /** Teren z siatki DEM: w poblizu toru opuszczony pod nawierzchnie, dalej plynnie do DEM. */
 export function buildTerrain(track, env, quality) {
   const T = track.terrain;
-  const cell = quality === 'low' ? 20 : 10;
+  // rozdzielczosc siatki terenu wg jakosci (teren daleko od toru i tak jest zamglony)
+  const cell = { low: 20, medium: 14, high: 10, ultra: 8 }[quality] || 14;
   const x0 = T.x0, x1 = T.x0 + (T.nx - 1) * T.cell;
   const zN0 = T.y0, zN1 = T.y0 + (T.ny - 1) * T.cell; // polnoc
   const nx = Math.floor((x1 - x0) / cell) + 1;
@@ -309,8 +310,8 @@ function treeGeometries(kind) {
   const leaf = new THREE.Color(0x3f6a2c);
   const blobs = [];
   const r = rng(4);
-  for (let k = 0; k < 4; k++) {
-    const g = new THREE.IcosahedronGeometry(2.6 + r() * 1.0, 1);
+  for (let k = 0; k < 3; k++) {
+    const g = new THREE.IcosahedronGeometry(2.9 + r() * 1.0, 1);
     g.translate((r() - 0.5) * 2.4, 7 + r() * 3, (r() - 0.5) * 2.4);
     blobs.push(colorize(g, leaf.clone().multiplyScalar(0.85 + r() * 0.3)));
   }
@@ -329,7 +330,7 @@ export class Forest {
     this.quality = quality;
     const maxTrees = { low: 2500, medium: 6500, high: 12000, ultra: 18000 }[quality] || 6000;
     this.viewDist = { low: 900, medium: 1400, high: 2000, ultra: 2600 }[quality] || 1400;
-    this.lodDist = { low: 180, medium: 260, high: 360, ultra: 480 }[quality] || 260;
+    this.lodDist = { low: 160, medium: 230, high: 340, ultra: 480 }[quality] || 230;
     const kinds = env.trees === 'mixed' ? ['deciduous', 'conifer'] : [env.trees];
     const geos = Object.fromEntries(kinds.map((k) => [k, treeGeometries(k)]));
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });

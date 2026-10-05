@@ -84,9 +84,9 @@ button { font-family: var(--font); }
 .hint.show { opacity: 1; }
 
 /* ---------------- MENU / OVERLAYE ---------------- */
-.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(90deg, rgba(5, 7, 10, 0.88) 0%, rgba(5, 7, 10, 0.55) 60%, rgba(5, 7, 10, 0.25) 100%); overflow: auto; padding: 24px 16px; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; background: linear-gradient(90deg, rgba(5, 7, 10, 0.88) 0%, rgba(5, 7, 10, 0.55) 60%, rgba(5, 7, 10, 0.25) 100%); overflow: auto; padding: 24px 16px; }
 #pause, #settings, #controls, #about { background: rgba(5, 7, 10, 0.78); backdrop-filter: blur(4px); }
-.menu-wrap { width: min(980px, 100%); }
+.menu-wrap { width: min(980px, 100%); margin: auto 0; }
 .menu-wrap.narrow { width: min(520px, 100%); }
 .brand .logo, .loader .logo { font-size: 56px; font-weight: 900; letter-spacing: -0.03em; font-style: italic; }
 .logo span { color: var(--accent); margin-left: 4px; }
@@ -140,7 +140,7 @@ kbd { background: #1d232c; border: 1px solid #39424f; border-bottom-width: 2px; 
 .lap-list .lr.inv { color: #ff8a80; }
 .lap-list .lr.best { color: #d9c7ff; }
 #loading { background: #05070a; }
-.loader { text-align: center; }
+.loader { text-align: center; margin: auto 0; }
 .spinner { width: 40px; height: 40px; margin: 22px auto; border: 3px solid rgba(255, 255, 255, 0.15); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #loading-text { color: var(--muted); font-size: 14px; }

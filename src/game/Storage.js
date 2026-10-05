@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS = {
   tc: 2, // 0 = wyl., 1..4
   gearbox: 'auto', // auto | manual
   steerSensitivity: 1.0,
-  speedSensitivity: 0.7,
+  speedSensitivity: 0.85,
   counterSteer: true,
   padDeadzone: 0.06,
   padLinearity: 1.4,

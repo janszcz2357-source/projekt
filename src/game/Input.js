@@ -32,7 +32,7 @@ export class Input {
     this.brake = 0;
     this.handbrake = 0;
     this.source = 'keyboard';
-    this.settings = { steerSensitivity: 1.0, speedSensitivity: 0.7, counterSteerAssist: true, padDeadzone: 0.06, padLinearity: 1.4 };
+    this.settings = { steerSensitivity: 1.0, speedSensitivity: 0.85, counterSteerAssist: true, padDeadzone: 0.06, padLinearity: 1.4 };
     this.gamepadIndex = null;
     this.prevButtons = [];
     this._onDown = (e) => {
@@ -114,10 +114,20 @@ export class Input {
     const pad = this._readGamepad();
     const speed = vehicle ? Math.abs(vehicle.forwardSpeed()) : 0;
     const S = this.settings;
+    // fizyczny limit skretu dla danej predkosci: kat dajacy ~1.75 g (geometrycznie) + maly zapas
+    // na kat znoszenia; czulosc przesuwa limit, "redukcja z predkoscia" miesza limit z pelnym skretem.
+    let physIn = 1;
+    if (vehicle) {
+      const maxA = (vehicle.cfg.steering.maxWheelAngleDeg * Math.PI) / 180;
+      const aLat = 9.81 * 1.75 * S.steerSensitivity;
+      const phys = Math.atan((vehicle.cfg.wheelbase * aLat) / Math.max(speed * speed, 1)) + 0.035 * S.steerSensitivity;
+      physIn = clamp(phys / maxA, 0, 1);
+    }
+    const sensMix = clamp(S.speedSensitivity, 0, 1);
     if (pad && this.source === 'gamepad') {
-      // pad: bezposrednio analogowo (+ opcjonalnie lagodna czulosc predkosciowa)
-      const sens = 1 / (1 + Math.pow(speed / (55 / S.steerSensitivity), 2) * S.speedSensitivity * 0.6);
-      const target = clamp(pad.steer * sens, -1, 1);
+      // pad: analogowo; lagodniejsza redukcja z predkoscia niz dla klawiatury
+      const lim = Math.pow(Math.min(1, physIn * 1.7), sensMix * 0.8);
+      const target = clamp(pad.steer * lim, -1, 1);
       this.steer += (target - this.steer) * Math.min(1, dt / 0.03);
       this.throttle = pad.throttle;
       this.brake = pad.brake;
@@ -127,8 +137,7 @@ export class Input {
       const l = this._down('left'), r = this._down('right');
       const dir = (r ? 1 : 0) - (l ? 1 : 0);
       // maksymalny skret zalezny od predkosci
-      const vRef = 34 * S.steerSensitivity;
-      const maxIn = 1 / (1 + Math.pow(speed / vRef, 2) * (0.25 + S.speedSensitivity));
+      const maxIn = Math.pow(physIn, sensMix);
       // srodek zakresu: kat zerowego poslizgu przodu (kontra), tylko przy poslizgu
       let center = 0;
       if (S.counterSteerAssist && vehicle && speed > 5) {

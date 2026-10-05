@@ -19,7 +19,7 @@ export const SETTINGS_SPEC = [
   { key: 'paint', label: 'Kolor samochodu', type: 'select', options: Object.entries(PAINTS).map(([k, v]) => [k, v.name]) },
   { group: 'Sterowanie' },
   { key: 'steerSensitivity', label: 'Czułość skrętu', type: 'range', min: 0.5, max: 1.6, step: 0.05, fmt: (v) => v.toFixed(2) },
-  { key: 'speedSensitivity', label: 'Redukcja skrętu z prędkością', type: 'range', min: 0, max: 1.5, step: 0.05, fmt: (v) => v.toFixed(2) },
+  { key: 'speedSensitivity', label: 'Redukcja skrętu z prędkością', type: 'range', min: 0, max: 1, step: 0.05, fmt: (v) => `${Math.round(v * 100)}%` },
   { key: 'counterSteer', label: 'Wspomaganie kontry (klawiatura)', type: 'check' },
   { key: 'padDeadzone', label: 'Martwa strefa gałki pada', type: 'range', min: 0, max: 0.3, step: 0.01, fmt: (v) => v.toFixed(2) },
   { key: 'padLinearity', label: 'Krzywa skrętu pada', type: 'range', min: 1, max: 2.5, step: 0.05, fmt: (v) => v.toFixed(2) },

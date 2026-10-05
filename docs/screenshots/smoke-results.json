@@ -1,0 +1,51 @@
+{
+  "tracks": {
+    "monza": {
+      "speedKmhAfterThrottle": 11.41548611680338,
+      "gear": 1,
+      "rpm": 2089.4843224045617,
+      "fpsSwiftShader": 1.4042182716880778,
+      "paused": true,
+      "resumed": "running",
+      "calls": 345,
+      "triangles": 346196,
+      "trees": 6506
+    },
+    "spa": {
+      "speedKmhAfterThrottle": 14.75366193047109,
+      "gear": 1,
+      "rpm": 2089.522781252758,
+      "fpsSwiftShader": 2.141262121072712,
+      "paused": true,
+      "resumed": "running",
+      "calls": 228,
+      "triangles": 103790,
+      "trees": 6689
+    },
+    "silverstone": {
+      "speedKmhAfterThrottle": 13.855160634062667,
+      "gear": 1,
+      "rpm": 2089.522059589968,
+      "fpsSwiftShader": 1.6133195663400883,
+      "paused": true,
+      "resumed": "running",
+      "calls": 355,
+      "triangles": 256402,
+      "trees": 3050
+    }
+  },
+  "bootSeconds": 7.558,
+  "timingUI": {
+    "lapStarted": true,
+    "laps": [
+      {
+        "time": 0.9999999999999967,
+        "valid": false,
+        "reason": "pominięte punkty kontrolne"
+      }
+    ],
+    "lastText": "0:01.000 ✕",
+    "msg": "Okrążenie 1: 0:01.000NIEWAŻNE – pominięte punkty kontrolne"
+  },
+  "errors": []
+}

@@ -78,7 +78,7 @@ export const GT_CAR = {
       [6000, 560], [6500, 545], [7000, 515], [7500, 470], [8000, 420], [8500, 300], [9000, 150],
     ],
     // opory wewnetrzne (hamowanie silnikiem) przy zamknietej przepustnicy: T = a + b * rpm
-    frictionTorque: { a: 28, b: 0.0095 },
+    frictionTorque: { a: 25, b: 0.0075 },
     cylinders: 8, // do syntezy dzwieku
   },
 
@@ -103,8 +103,8 @@ export const GT_CAR = {
 
   // ---------------------------------------------------------------- hamulce
   brakes: {
-    maxTorqueFront: 3720, // Nm na kolo przy 100% pedalu (rozdzial ~62/38)
-    maxTorqueRear: 2280,
+    maxTorqueFront: 3960, // Nm na kolo przy 100% pedalu (rozdzial 66/34)
+    maxTorqueRear: 2040,
     handbrakeTorque: 2500, // Nm na kolo tylne
   },
 
@@ -126,8 +126,10 @@ export const GT_CAR = {
 
   // ---------------------------------------------------------------- systemy wspomagajace
   assists: {
-    // docelowy poslizg wzdluzny dla poziomow 1..4 (0 = wylaczone)
-    absSlip: [0.16, 0.135, 0.115, 0.095],
+    // ABS: prog poslizgu wzdluznego jako krotnosc poslizgu szczytowego opony (poziomy 1..4, 0 = wyl.)
+    // 1 = najmniej ingerencji (kola moga wejsc za szczyt), 4 = najbezpieczniej
+    absSlip: [1.3, 1.05, 0.92, 0.8],
+    // TC: dopuszczalny poslizg wzdluzny kol napedzanych (bezwzgledny), poziomy 1..4
     tcSlip: [0.24, 0.17, 0.13, 0.095],
     // TC: dopuszczalny laczny poslizg opony napedzanej (1.0 = szczyt przyczepnosci)
     tcCombined: [1.30, 1.06, 0.96, 0.86],

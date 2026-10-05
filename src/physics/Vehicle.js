@@ -58,6 +58,8 @@ class Wheel {
     this.roadTorque = 0;
     this.brakeTorque = 0;
     this.absFactor = 1;
+    this.absLimit = Infinity;
+    this.absActive = false;
     this.surface = SURF.ASPHALT;
     this.groundHeight = 0;
     this.contactPoint = new Vector3();
@@ -87,6 +89,7 @@ const _n = new Vector3();
 const _sample = { height: 0, nx: 0, ny: 1, nz: 0, type: SURF.ASPHALT, index: 0, lateral: 0 };
 const _hit = { pen: 0, nx: 0, nz: 0 };
 const _tyreOut = { fx: 0, fy: 0, slip: 0, mu: 0 };
+const _absOut = { fx: 0, fy: 0, slip: 0, mu: 0 };
 
 export class Vehicle {
   constructor(cfg, surface) {
@@ -225,6 +228,12 @@ export class Vehicle {
     }
     this._prevVel.copy(this.vel);
     this._accelSmooth.set(0, 0, 0);
+    this._throttleCmd = 0;
+    this._brakeCmd = 0;
+    Object.assign(this.telemetry, {
+      speed, forwardSpeed: speed, speedKmh: speed * 3.6, rpm: this.drivetrain.rpm, gear: this.drivetrain.gear,
+      throttle: 0, brake: 0, absActive: false, tcActive: false, latG: 0, longG: 0, offTrackWheels: 0, curbWheels: 0,
+    });
     this.shiftRequests = 0;
     this._reverseTimer = 0;
     this.lastImpact = 0;
@@ -309,6 +318,47 @@ export class Vehicle {
     const maxSteer = this.cfg.steering.maxWheelAngleDeg * DEG;
     this.steerAngle = -clamp(inp.steer, -1, 1) * maxSteer;
     this._applySteer(this.steerAngle);
+  }
+
+  /**
+   * ABS: moment hamowania kola ograniczany do wartosci, przy ktorej opona pracuje na zadanym
+   * poslizgu (sprzezenie w przod z modelu opony przy biezacym obciazeniu i nawierzchni)
+   * + korekta od zmierzonego poslizgu (absFactor). Os tylna "select-low" (stabilnosc),
+   * przod: ograniczona roznica lewo/prawo (moment odchylajacy przy roznej przyczepnosci stron).
+   */
+  _updateABS(h, brakeCmd) {
+    const lvl = this.settings.absLevel;
+    const peak = this.cfg.tyres.peakSlipRatio;
+    const W = this.wheels;
+    for (const w of W) {
+      w.absLimit = Infinity;
+      if (lvl > 0 && brakeCmd > 0.01 && Math.abs(w.vx) > 3 && w.contact) {
+        const target = peak * this.cfg.assists.absSlip[lvl - 1];
+        const sp = SURFACE_PROPS[w.surface] || SURFACE_PROPS[SURF.ASPHALT];
+        this.tyre.forces(w.fz, -target, w.sy, sp.grip * w.grip, _absOut);
+        w.absLimit = Math.abs(_absOut.fx) * w.radius;
+        const sl = w.vx > 0 ? w.slipRatioInstant : -w.slipRatioInstant;
+        // korekta: przy przekroczeniu progu dodatkowo zmniejsz moment, potem odbuduj
+        if (sl < -target * 1.25) w.absFactor = Math.max(0.3, w.absFactor - 25 * h);
+        else w.absFactor = Math.min(1, w.absFactor + 6 * h);
+      } else {
+        w.absFactor = Math.min(1, w.absFactor + 10 * h);
+      }
+    }
+    if (lvl > 0) {
+      const [fl, fr, rl, rr] = W;
+      const r = Math.min(rl.absLimit * rl.absFactor, rr.absLimit * rr.absFactor);
+      rl.absLimit = rr.absLimit = r;
+      rl.absFactor = rr.absFactor = 1;
+      const a = fl.absLimit * fl.absFactor, b = fr.absLimit * fr.absFactor;
+      if (Number.isFinite(a) && Number.isFinite(b)) {
+        const m = Math.max(a, b) - Math.min(a, b);
+        const lim = 0.25 * Math.max(a, b);
+        if (m > lim) {
+          if (a > b) fl.absLimit = (b + lim) / fl.absFactor; else fr.absLimit = (a + lim) / fr.absFactor;
+        }
+      }
+    }
   }
 
   _applySteer(delta) {
@@ -452,9 +502,9 @@ export class Vehicle {
 
     // ---------------- opony
     const inp = this.input;
-    const absLevel = this.settings.absLevel;
     const bc = cfg.brakes;
     const brakeCmd = this._brakeCmd || 0;
+    this._updateABS(h, brakeCmd);
     const tc = cfg.tyres;
     for (const w of wheels) {
       // kierunek kola
@@ -479,15 +529,10 @@ export class Vehicle {
         const total = bc.maxTorqueFront + bc.maxTorqueRear;
         maxT = (w.isFront ? this.settings.brakeBias : 1 - this.settings.brakeBias) * total;
       }
-      if (absLevel > 0 && brakeCmd > 0.01 && Math.abs(vx) > 3 && w.contact) {
-        const target = cfg.assists.absSlip[absLevel - 1];
-        const sl = vx > 0 ? w.slipRatioInstant : -w.slipRatioInstant;
-        if (sl < -target) w.absFactor = Math.max(0.05, w.absFactor - 30 * h);
-        else w.absFactor = Math.min(1, w.absFactor + 8 * h);
-      } else {
-        w.absFactor = Math.min(1, w.absFactor + 10 * h);
-      }
-      w.brakeTorque = brakeCmd * maxT * w.absFactor + (!w.isFront ? inp.handbrake * bc.handbrakeTorque : 0);
+      const pedalT = brakeCmd * maxT;
+      const absT = w.absLimit * w.absFactor;
+      w.brakeTorque = Math.min(pedalT, absT) + (!w.isFront ? inp.handbrake * bc.handbrakeTorque : 0);
+      w.absActive = absT < pedalT;
 
       if (!w.contact) {
         w.fx = 0; w.fy = 0; w.slip = 0; w.roadTorque = 0; w.slideSpeed = 0;
@@ -678,7 +723,7 @@ export class Vehicle {
     t.throttle = this._throttleCmd || 0;
     t.brake = this._brakeCmd || 0;
     t.steerAngle = this.steerAngle;
-    t.absActive = this.wheels.some((w) => w.absFactor < 0.97);
+    t.absActive = this.wheels.some((w) => w.absActive);
     t.tcActive = dtn.tcActive;
     t.longG = this._accelSmooth.dot(_az) / PHYSICS.gravity;
     t.latG = this._accelSmooth.dot(_ax) / PHYSICS.gravity;
