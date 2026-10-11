@@ -4,6 +4,7 @@
 // Wielkość liter, spacje, myślniki, kropki, słowa ogólne ("Półwysep", "Jezioro"…),
 // brak polskich znaków i drobne literówki obsługuje src/answers.js – tu ich nie dopisujemy.
 module.exports = {
+  'Elbrus': { alt: ['Wulkan Elbrus'] },
   'Płw. Indyjski': { alt: ['Hindustan'] },
   'Płw. Arabski': { alt: ['Arabia'] },
   'Płw. Indochiński': { alt: ['Indochiny'] },
@@ -16,7 +17,7 @@ module.exports = {
   'Riukiu': { variant: ['Ryukyu'] },
   'Himalaje': { variant: ['Himalayas'] },
   'Kaukaz': { variant: ['Caucasus'] },
-  'Dekan': { alt: ['Wyżyna Dekańska'], variant: ['Deccan'] },
+  'Dekan': { alt: ['Wyżyna Dekańska', 'Płaskowyż Dekański'], variant: ['Deccan'] },
   'Tybet': { alt: ['Wyżyna Tybetańska', 'Płaskowyż Tybetański'] },
   'Wyż. Irańska': { alt: ['Płaskowyż Irański'] },
   'Wyż. Środkowosyberyjska': { alt: ['Płaskowyż Środkowosyberyjski'] },

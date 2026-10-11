@@ -5,13 +5,13 @@
 
   // Słowa ogólne i skróty: można je dopisać albo pominąć. Wartość to "rodzaj" obiektu.
   const GENERIC = {
-    polwysep: 'polwysep', plw: 'polwysep', pw: 'polwysep',
+    polwysep: 'polwysep', plw: 'polwysep', polw: 'polwysep', pw: 'polwysep',
     wyspa: 'wyspa', wyspy: 'wyspa', archipelag: 'wyspa', wysp: 'wyspa',
-    gory: 'gory', pasmo: 'gory',
+    gory: 'gory', g: 'gory', pasmo: 'gory',
     gora: 'gora',
-    nizina: 'nizina', niz: 'nizina',
-    wyzyna: 'wyzyna', wyz: 'wyzyna',
-    kotlina: 'kotlina', kot: 'kotlina',
+    nizina: 'nizina', niz: 'nizina', rownina: 'nizina',
+    wyzyna: 'wyzyna', wyz: 'wyzyna', plaskowyz: 'wyzyna',
+    kotlina: 'kotlina', kot: 'kotlina', kotl: 'kotlina',
     pustynia: 'pustynia', pust: 'pustynia',
     ocean: 'ocean', oc: 'ocean',
     morze: 'morze', m: 'morze',
@@ -56,10 +56,12 @@
   }
   function tokens(s) {
     return String(s || '').normalize('NFC').toLowerCase()
-      .split(/[\s\-‐-―.,;:()[\]'"`’‘„”«»/\\!?]+/)
-      .filter(Boolean);
+      .replace(/(^|[^\p{L}])p\s*-\s*[oó]?w(?=[^\p{L}]|$)/gu, '$1płw') // "P-ów Indyjski"
+      .split(/[^\p{L}\p{N}]+/u) // każdy znak poza literą i cyfrą (także „ “ ” ‚ ’) rozdziela słowa
+      .filter(Boolean)
+      .map((t) => (t === 'wlk' ? 'wielki' : t));
   }
-  // Damerau–Levenshtein (wersja OSA) – potrzebuje całej tablicy, więc osobna implementacja
+  // Odległość Damerau–Levenshteina (wariant OSA): zamiana sąsiednich liter to jedna literówka.
   function dist(a, b) {
     if (a === b) return 0;
     const n = a.length, m = b.length;
@@ -77,6 +79,15 @@
     }
     return d[n][m];
   }
+  // Ile literówek tolerujemy przy nazwie o danej długości rdzenia
+  const limit = (n) => (n <= 3 ? 0 : n <= 7 ? 1 : 2);
+  // Te same słowa różniące się tylko końcówką ("indus"/"indusu", "arabski"/"arabskie")
+  function sameStem(a, b) {
+    if (a === b) return true;
+    let pre = 0;
+    while (pre < a.length && pre < b.length && a[pre] === b[pre]) pre++;
+    return pre >= 4 && Math.max(a.length, b.length) - pre <= 3;
+  }
 
   function genericOf(tok) {
     const f = fold(tok.toLowerCase());
@@ -85,6 +96,7 @@
     return null;
   }
   // Rozbiór tekstu: rodzaje (słowa ogólne) i rdzeń nazwy (bez spacji), z polskimi znakami i bez nich.
+  // key/rawKey to słowa rdzenia w kolejności alfabetycznej ("Sopka Kluczewska" = "Kluczewska Sopka").
   function parse(s) {
     const gens = new Set();
     const core = [];
@@ -93,7 +105,8 @@
       if (g) gens.add(g); else core.push(t);
     }
     const raw = core.join('');
-    return { gens, raw, core: fold(raw) };
+    const sorted = core.slice().sort();
+    return { gens, raw, core: fold(raw), key: sorted.map(fold).sort().join(' '), rawKey: sorted.join(' '), words: core.length };
   }
   function nameForms(name) {
     // "Czogori (K2)" -> ["Czogori (K2)", "Czogori", "K2"]
@@ -103,13 +116,17 @@
     return out;
   }
 
-  function build(items) {
+  // items: obiekty z listy ({id, name, kind, alt?, variant?})
+  // outside: nazwy obiektów SPOZA listy, które łatwo pomylić z nazwami z listy (np. "Morze Jońskie");
+  //          nigdy nie są poprawną odpowiedzią i nie mogą przejść jako literówka nazwy z listy.
+  function build(items, outside) {
     const index = {};
+    const cores = new Set();
     for (const it of items) {
       const forms = [];
       const add = (text, type) => {
         const p = parse(text);
-        if (p.core) forms.push({ text, type, raw: p.raw, core: p.core, gens: p.gens });
+        if (p.core) { forms.push({ text, type, raw: p.raw, core: p.core, key: p.key, rawKey: p.rawKey, gens: p.gens }); cores.add(p.core); }
       };
       nameForms(it.name).forEach((t) => add(t, 'name'));
       (it.alt || []).forEach((t) => add(t, 'alt'));
@@ -118,48 +135,90 @@
       for (const f of forms) if (f.type !== 'variant') f.gens.forEach((g) => allowed.add(g));
       index[it.id] = { it, forms, allowed };
     }
-    return index;
+    const out = [];
+    for (const name of outside || []) {
+      const p = parse(name);
+      if (p.core && !cores.has(p.core)) out.push({ name, core: p.core, key: p.key, allowed: p.gens });
+    }
+    return { items: index, outside: out };
   }
 
-  // Wynik: { ok, status, form?, other?, generic? }
+  function statusOf(form, exactRaw) {
+    if (form.type === 'variant') return 'variant';
+    if (!exactRaw) return 'diacritics';
+    return form.type === 'alt' ? 'alt' : 'exact';
+  }
+
+  // Wynik: { ok, status, form?, other?, outside?, generic? }
   //  ok=true:  exact | alt | diacritics | variant | typo
-  //  ok=false: empty | generic | other | wrong
-  function check(index, targetId, input) {
+  //  ok=false: empty | generic | other | outside | wrong
+  function check(A, targetId, input) {
+    const index = A.items;
     const T = index[targetId];
     const p = parse(input);
     if (!p.core) return { ok: false, status: p.gens.size ? 'wrong' : 'empty' };
     const badGeneric = [...p.gens].find((g) => !T.allowed.has(g));
-    const fits = (entry) => [...p.gens].every((g) => entry.allowed.has(g));
+    const fitsSet = (allowed) => [...p.gens].every((g) => allowed.has(g));
+    const multi = p.words > 1;
 
-    // 1. dokładnie nazwa (albo nazwa zamienna) zaznaczonego obiektu
-    const hit = T.forms.find((f) => f.core === p.core);
+    // 1. nazwa (albo nazwa zamienna) zaznaczonego obiektu: dokładnie, w innej kolejności słów,
+    //    albo dwie jego nazwy naraz ("Borneo (Kalimantan)", "K2 / Czogori")
+    let hit = T.forms.find((f) => f.core === p.core);
+    let exactRaw = hit ? hit.raw === p.raw : false;
+    if (!hit && multi) {
+      hit = T.forms.find((f) => f.key === p.key);
+      if (hit) exactRaw = hit.rawKey === p.rawKey;
+    }
+    if (!hit) {
+      const parts = String(input).split(/[()/]/).map(parse).filter((x) => x.core);
+      if (parts.length > 1) {
+        const fs = parts.map((x) => T.forms.find((f) => f.core === x.core));
+        if (fs.every(Boolean)) {
+          hit = fs.find((f) => f.type === 'variant') || fs.find((f) => f.type === 'alt') || fs[0];
+          exactRaw = parts.every((x, i) => x.raw === fs[i].raw);
+        }
+      }
+    }
     if (hit) {
       if (badGeneric) return { ok: false, status: 'generic', generic: GENERIC_LABEL[badGeneric], form: hit };
-      if (hit.type === 'variant') return { ok: true, status: 'variant', form: hit };
-      if (hit.raw !== p.raw) return { ok: true, status: 'diacritics', form: hit };
-      return { ok: true, status: hit.type === 'alt' ? 'alt' : 'exact', form: hit };
+      return { ok: true, status: statusOf(hit, exactRaw), form: hit };
     }
-    // 2. dokładnie nazwa innego obiektu z listy
+
+    // 2. dokładnie nazwa innego obiektu z listy albo znanego obiektu spoza listy
     for (const id in index) {
       if (id === targetId) continue;
       const E = index[id];
-      if (E.forms.some((f) => f.core === p.core) && (!p.gens.size || fits(E))) return { ok: false, status: 'other', other: E.it };
+      if (E.forms.some((f) => f.core === p.core || (multi && f.key === p.key)) && (!p.gens.size || fitsSet(E.allowed))) {
+        return { ok: false, status: 'other', other: E.it };
+      }
     }
+    for (const d of A.outside) {
+      if ((d.core === p.core || (multi && d.key === p.key)) && (!p.gens.size || fitsSet(d.allowed))) {
+        return { ok: false, status: 'outside', outside: d.name };
+      }
+    }
+
     // 3. literówka: blisko nazwy celu i wyraźnie dalej od każdej innej nazwy
     let best = null, bd = Infinity;
     for (const f of T.forms) {
       const d = dist(p.core, f.core);
-      if (d < bd) { bd = d; best = f; }
+      if (d <= limit(f.core.length) && (d < bd || (d === bd && f.core.length > best.core.length))) { bd = d; best = f; }
     }
-    const len = best.core.length;
-    const maxD = len <= 3 ? 0 : len <= 7 ? 1 : 2;
-    if (bd <= maxD) {
-      // inne obiekty liczą się tylko, gdy pasują do wpisanego słowa ogólnego ("Nizina Indus" to nie rzeka Indus)
+    if (best) {
       let otherD = Infinity;
       for (const id in index) {
-        if (id === targetId || (p.gens.size && !fits(index[id]))) continue;
-        for (const f of index[id].forms) otherD = Math.min(otherD, dist(p.core, f.core));
+        if (id === targetId) continue;
+        const E = index[id];
+        // gdy wpisane słowo ogólne nie pasuje do innego obiektu, jego nazwa o tym samym rdzeniu
+        // nie konkuruje ("Nizina Indus" to nie rzeka Indus), ale inne nazwy – tak ("Nizina Irańska")
+        const skipStem = p.gens.size && !fitsSet(E.allowed);
+        for (const f of E.forms) {
+          if (T.forms.some((t) => t.core === f.core)) continue; // ten sam rdzeń co cel ("Indyjski")
+          if (skipStem && T.forms.some((t) => sameStem(f.core, t.core))) continue;
+          otherD = Math.min(otherD, dist(p.core, f.core));
+        }
       }
+      for (const d of A.outside) otherD = Math.min(otherD, dist(p.core, d.core));
       if (otherD > bd) {
         if (badGeneric) return { ok: false, status: 'generic', generic: GENERIC_LABEL[badGeneric], form: best };
         return { ok: true, status: 'typo', form: best, distance: bd };
@@ -193,8 +252,41 @@
     }
     return c;
   }
+  // Ile liter można odsłonić: zawsze zostaje zakryte więcej liter, niż wynosi tolerancja literówek,
+  // więc samo przepisanie podpowiedzi nie wystarczy do zaliczenia.
+  function maxHints(name) {
+    const n = letters(name);
+    return Math.max(0, n - 1 - limit(n));
+  }
 
-  const api = { build, check, hint, letters, primary, parse, fold, dist, GENERIC };
+  // Tekst, który uczeń widzi po `n` podpowiedziach, bez zakrytych liter ("Płw. Indyj").
+  function revealed(name, n) {
+    let left = n;
+    const out = [];
+    for (const part of primary(name).split(/\s+/)) {
+      const bare = part.replace(/[^\p{L}\p{N}]/gu, '');
+      if (bare && genericOf(bare)) { out.push(part); continue; }
+      if (left <= 0) break;
+      let w = '';
+      for (const ch of part) {
+        if (!/[\p{L}\p{N}]/u.test(ch)) { w += ch; continue; }
+        if (left <= 0) break;
+        w += ch; left--;
+      }
+      out.push(w);
+    }
+    return out.join(' ');
+  }
+  // Największa liczba podpowiedzi, przy której samo przepisanie odsłoniętych liter
+  // nie zalicza odpowiedzi (sprawdzane tym samym check(), także względem nazw zamiennych).
+  function hintCap(A, id) {
+    const name = A.items[id].it.name;
+    let n = maxHints(name);
+    while (n > 0 && check(A, id, revealed(name, n)).ok) n--;
+    return n;
+  }
+
+  const api = { build, check, hint, letters, maxHints, hintCap, revealed, primary, parse, fold, dist, limit, GENERIC };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AsiaAnswers = api;
 })(typeof self !== 'undefined' ? self : this);

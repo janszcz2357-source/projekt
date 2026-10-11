@@ -6,7 +6,7 @@ const map = JSON.parse(fs.readFileSync(path.join(__dirname, 'map.json'), 'utf8')
 let cases = require('./answer-cases.js');
 if (process.argv[2]) cases = cases.concat(JSON.parse(fs.readFileSync(process.argv[2], 'utf8')));
 
-const index = A.build(map.items);
+const index = A.build(map.items, map.decoys || []);
 const byName = Object.fromEntries(map.items.map((i) => [i.name, i]));
 const NOTE = new Set(['diacritics', 'typo', 'variant']);
 let fail = 0;
@@ -43,6 +43,23 @@ for (const a of map.items) {
       if (r.ok) { fail++; console.log(`FAIL  kolizja: "${text}" (${a.name}) uznane dla ${b.name} (${r.status})`); }
     }
   }
+}
+// Nazwy spoza listy (pułapki) nigdy nie są uznawane.
+for (const d of map.decoys || []) {
+  for (const b of map.items) {
+    const r = A.check(index, b.id, d);
+    if (r.ok) { fail++; console.log(`FAIL  pułapka "${d}" uznana dla ${b.name} (${r.status})`); }
+  }
+}
+// Maksymalna podpowiedź nie może sama wystarczyć: przepisane odsłonięte litery nie dają zaliczenia.
+for (const it of map.items) {
+  const cap = A.hintCap(index, it.id);
+  const shown = A.revealed(it.name, cap);
+  const r = A.check(index, it.id, shown);
+  if (cap > 0 && r.ok) { fail++; console.log(`FAIL  podpowiedź wystarcza: ${it.name} ← "${shown}" (${r.status})`); }
+  if (cap < Math.min(2, A.letters(it.name) - 1)) { fail++; console.log(`FAIL  za mało podpowiedzi (${cap}): ${it.name}`); }
+  const h = A.hint(it.name, cap).replace(/ /g, '');
+  if (!h.replace(/_/g, '').startsWith(shown.replace(/ /g, '').slice(0, 1))) { fail++; console.log(`FAIL  hint/revealed niespójne: ${it.name}`); }
 }
 // Rdzeń żadnej nazwy nie może wyglądać jak słowo ogólne (wtedy zniknąłby przy rozbiorze).
 for (const it of map.items) {

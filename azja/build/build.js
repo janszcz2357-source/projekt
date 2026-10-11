@@ -4,6 +4,7 @@ const d3 = require('d3-geo');
 const topojson = require('topojson-client');
 const { cats, items } = require('./items.js');
 const ALIASES = require('./aliases.js');
+const DECOYS = require('./decoys.js');
 
 const DATA = path.join(__dirname, 'data');
 const read = (f) => JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8'));
@@ -99,7 +100,7 @@ const inView = (f) => {
   return c && c[0] > -50 && c[0] < W + 50 && c[1] > -50 && c[1] < H + 50;
 };
 
-const out = { W, H, cats, items: [] };
+const out = { W, H, cats, items: [], decoys: DECOYS };
 out.land = ser(collect(land), TOL, 2.5);
 out.borders = ser(collect(borders), TOL * 1.2);
 out.lakes = ser(collect({ type: 'FeatureCollection', features: lakes.features.filter(inView) }), TOL * 0.7, 1.5);

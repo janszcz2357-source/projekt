@@ -406,6 +406,7 @@ kbd { font: inherit; }
             <div class="grade" id="rGrade"></div>
           </div>
           <p class="note">Ocena jest orientacyjna, bo progi procentowe różnią się między szkołami.</p>
+          <p class="note" id="rHints" hidden></p>
           <h3 id="rWrongH">Do powtórki</h3>
           <div class="wrong" id="rWrong"></div>
           <div id="rSpellWrap" hidden>
@@ -460,7 +461,7 @@ kbd { font: inherit; }
   const BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
   const RANK = { morza: 0, jeziora: 1, gory: 2, wyspy: 3, niziny: 4, pustynie: 5, szczyty: 6, rzeki: 7 };
   const countIn = (cat) => ITEMS.filter((i) => i.cat === cat).length;
-  const AN = AsiaAnswers.build(ITEMS);
+  const AN = AsiaAnswers.build(ITEMS, MAP.decoys || []);
   const dotEl = (it) => { const d = h('span', 'dot c-' + it.cat + (it.cat === 'szczyty' ? ' tri' : '')); return d; };
 
   // ---------- Mapa ----------
@@ -551,9 +552,11 @@ kbd { font: inherit; }
     return d3.zoomIdentity.translate((CW - MAP.W * k) / 2, top + (CH - top - MAP.H * k) / 2).scale(k);
   }
   function refit() { if (!userMoved) go(fitTransform(), 350); }
+  let goal = null; // docelowe położenie mapy, gdy trwa animacja
   function go(t, ms) {
-    if (reduceMotion || !ms) sel.interrupt().call(zoom.transform, t);
-    else sel.transition().duration(ms).call(zoom.transform, t);
+    goal = t;
+    if (reduceMotion || !ms) { sel.interrupt().call(zoom.transform, t); goal = null; }
+    else sel.transition().duration(ms).call(zoom.transform, t).on('end interrupt', () => { if (goal === t) goal = null; });
   }
   function fit() { userMoved = false; go(fitTransform(), 450); }
   function cardBottom() {
@@ -572,15 +575,28 @@ kbd { font: inherit; }
   }
   function flyTo(it, kMin) {
     userMoved = true;
-    const k = Math.min(K0 * 16, Math.max(T.k, kMin || 0));
+    const k = Math.min(K0 * 16, Math.max((goal || T).k, kMin || 0));
     const band = freeBand();
     const cy = state.tab === 'learn' && state.selected ? CH * 0.4 : $('#prompt').hidden ? CH * 0.5 : (band[0] + band[1]) / 2;
     go(d3.zoomIdentity.translate(CW / 2 - it.x * k, cy - it.y * k).scale(k), 650);
   }
   function ensureVisible(it) {
-    const sx = T.applyX(it.x), sy = T.applyY(it.y);
+    const G = goal || T;
+    const sx = G.applyX(it.x), sy = G.applyY(it.y);
     const [top, bottom] = freeBand();
-    if (sx < 40 || sx > CW - 60 || sy < top || sy > bottom) flyTo(it, T.k);
+    if (sx < 40 || sx > CW - 60 || sy < top || sy > bottom) flyTo(it, G.k);
+  }
+  // Pokaż kilka obiektów naraz w wolnym pasie mapy (np. cel i obiekt, który wpisano zamiast niego).
+  function showAll(list) {
+    const G = goal || T;
+    const [top, bottom] = freeBand();
+    const inView = list.every((it) => { const x = G.applyX(it.x), y = G.applyY(it.y); return x >= 40 && x <= CW - 60 && y >= top && y <= bottom; });
+    if (inView) return;
+    const xs = list.map((it) => it.x), ys = list.map((it) => it.y);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const k = Math.min(G.k, (CW - 140) / Math.max(1, x1 - x0), (bottom - top - 40) / Math.max(1, y1 - y0));
+    userMoved = true;
+    go(d3.zoomIdentity.translate(CW / 2 - (x0 + x1) / 2 * k, (top + bottom) / 2 - (y0 + y1) / 2 * k).scale(Math.max(k, K0 * 0.9)), 650);
   }
 
   new ResizeObserver(() => {
@@ -882,7 +898,7 @@ kbd { font: inherit; }
       return { item, type, options: type === 'name' || type === 'fact' ? makeOptions(item) : null };
     });
     const cats = new Set(poolItems ? cfg.cats.concat(pool.map((i) => i.cat)) : cfg.cats);
-    Q = { qs, i: 0, score: 0, answered: false, wrong: [], spell: [], cats, phase: 'run', typed: null };
+    Q = { qs, i: 0, score: 0, answered: false, wrong: [], spell: [], hinted: [], cats, phase: 'run', typed: null };
     userMoved = false;
     $('#qSetup').hidden = true; $('#qEnd').hidden = true; $('#qRun').hidden = false;
     renderQ();
@@ -911,9 +927,11 @@ kbd { font: inherit; }
     $('#pForm').hidden = !isType;
     $('#pTools').hidden = !isType;
     if (isType) {
-      if (!restore || !Q.typed) Q.typed = { input: '', res: null, hints: 0 };
       const inp = $('#pInput');
-      inp.value = '';
+      if (!restore || !Q.typed) {
+        Q.typed = { input: '', res: null, hints: 0, cap: AsiaAnswers.hintCap(AN, q.item.id) };
+        inp.value = '';
+      }
       inp.disabled = false;
       $('#pCheck').disabled = false;
       $('#pForm').className = 'pform';
@@ -968,7 +986,8 @@ kbd { font: inherit; }
     const total = AsiaAnswers.letters(q.item.name);
     $('#pHint').textContent = n ? AsiaAnswers.hint(q.item.name, n) : '';
     $('#pHint').title = n ? litery(total) : '';
-    $('#pHintBtn').disabled = n >= total - 1;
+    if (n && n >= Q.typed.cap) $('#pHint').textContent += '   (resztę wpisz z pamięci)';
+    $('#pHintBtn').disabled = n >= Q.typed.cap;
     $('#pHintBtn').textContent = n ? 'Kolejna litera' : 'Podpowiedź';
   }
   $('#pHintBtn').addEventListener('click', () => {
@@ -984,13 +1003,14 @@ kbd { font: inherit; }
     if (!Q || Q.phase !== 'run' || Q.answered) return;
     const q = Q.qs[Q.i];
     const input = $('#pInput').value;
-    if (!skip && !input.trim()) { toast('Wpisz nazwę albo wybierz „Nie wiem”.'); $('#pInput').focus({ preventScroll: true }); return; }
     const res = skip ? { ok: false, status: 'skip' } : AsiaAnswers.check(AN, q.item.id, input);
+    if (!skip && res.status === 'empty') { toast('Wpisz nazwę albo wybierz „Nie wiem”.'); $('#pInput').focus({ preventScroll: true }); return; }
     Q.answered = true;
     Q.typed.input = skip ? '' : input.trim();
     Q.typed.res = res;
     if (res.ok) Q.score++; else Q.wrong.push(q.item);
     if (res.ok && (res.status === 'diacritics' || res.status === 'typo' || res.status === 'variant')) Q.spell.push({ item: q.item, input: input.trim() });
+    if (Q.typed.hints) Q.hinted.push(q.item);
     showAnswer(q.item.id);
   }
 
@@ -1067,7 +1087,7 @@ kbd { font: inherit; }
       if (r.other.d) view.rivers.set(r.other.id, 'soft');
     }
     applyView();
-    ensureVisible(it);
+    if (r.status === 'other') showAll([it, r.other]); else ensureVisible(it);
     const inp = $('#pInput');
     inp.value = t.input;
     inp.disabled = true;
@@ -1084,7 +1104,8 @@ kbd { font: inherit; }
       case 'variant': head = 'Uznaję, ale po polsku piszemy inaczej'; pres = 'Po polsku: ' + name; paras.push(line('Polska nazwa: ', name, '.')); break;
       case 'typo': head = 'Uznaję, ale popraw literówkę'; pres = 'Pisownia: ' + name; paras.push(line('Poprawna pisownia: ', name, '.')); break;
       case 'generic': head = `To nie jest ${r.generic}`; pres = 'Poprawnie: ' + name; paras.push(line('Poprawnie: ', name, ` (${it.kind}).`)); break;
-      case 'other': head = 'To nazwa innego obiektu'; pres = 'Poprawnie: ' + name; paras.push(line('', r.other.name, ' jest zaznaczony na czerwono.'), line('Poprawnie: ', name, '.')); break;
+      case 'other': head = 'To nazwa innego obiektu'; pres = 'Poprawnie: ' + name; paras.push(line('Na czerwono zaznaczono: ', r.other.name, '.'), line('Poprawnie: ', name, '.')); break;
+      case 'outside': head = 'To inny obiekt, spoza tej listy'; pres = 'Poprawnie: ' + name; paras.push(line('', r.outside, ' to inny obiekt geograficzny.'), line('Poprawnie: ', name, '.')); break;
       case 'skip': head = 'Odpowiedź'; pres = name; paras.push(line('To jest ', name, '.')); break;
       default: head = 'Niestety nie'; pres = 'Poprawnie: ' + name; paras.push(line('Poprawnie: ', name, '.'));
     }
@@ -1122,6 +1143,19 @@ kbd { font: inherit; }
     if (p >= 40) return 'dopuszczający (2)';
     return 'niedostateczny (1)';
   }
+  // Ekran wyniku: pokaż obiekt z listy błędów albo pisowni. Błędne zostają czerwone, inne obejrzane znikają.
+  function endShow(it, btn) {
+    for (const x of document.querySelectorAll('#rWrong .it, #rSpell .it')) x.setAttribute('aria-current', x === btn);
+    const wrongIds = new Set(Q.wrong.map((w) => w.id));
+    for (const k of [...view.cls.keys()]) {
+      if (wrongIds.has(k)) view.cls.set(k, 'bad');
+      else { view.cls.delete(k); view.force.delete(k); view.visible.delete(k); }
+    }
+    view.visible.add(it.id); view.force.add(it.id); view.cls.set(it.id, 'sel');
+    applyView();
+    flyTo(it, K0 * 2.4);
+    if (!wide.matches) stage.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  }
   function renderEnd() {
     $('#qSetup').hidden = true; $('#qRun').hidden = true; $('#qEnd').hidden = false;
     $('#prompt').hidden = true;
@@ -1130,6 +1164,9 @@ kbd { font: inherit; }
     $('#rScore').textContent = `${s}/${n}`;
     $('#rPct').textContent = `${p}% poprawnych`;
     $('#rGrade').textContent = grade(p);
+    const hinted = Q.hinted || [];
+    $('#rHints').hidden = !hinted.length;
+    $('#rHints').textContent = hinted.length ? `Z podpowiedzią: ${hinted.length} z ${n} (${hinted.map((x) => x.name).join(', ')}).` : '';
     const box = $('#rWrong');
     box.textContent = '';
     $('#rWrongH').textContent = Q.wrong.length ? `Do powtórki (${Q.wrong.length})` : 'Do powtórki';
@@ -1137,14 +1174,7 @@ kbd { font: inherit; }
     for (const it of Q.wrong) {
       const b = h('button', 'it');
       b.append(dotEl(it), h('span', 'nm', it.name), h('span', 'kd', it.kind));
-      b.addEventListener('click', () => {
-        for (const x of box.querySelectorAll('.it')) x.setAttribute('aria-current', x === b);
-        view.cls.forEach((v, k) => view.cls.set(k, 'bad'));
-        view.cls.set(it.id, 'sel');
-        applyView();
-        flyTo(it, K0 * 2.4);
-        if (!wide.matches) stage.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-      });
+      b.addEventListener('click', () => endShow(it, b));
       box.append(b);
     }
     const sw = $('#rSpell');
@@ -1154,14 +1184,7 @@ kbd { font: inherit; }
     for (const { item, input } of Q.spell) {
       const b = h('button', 'it');
       b.append(dotEl(item), h('span', 'nm', item.name), h('span', 'kd', 'wpisano: ' + input));
-      b.addEventListener('click', () => {
-        view.visible.add(item.id); view.force.add(item.id);
-        view.cls.forEach((v, k) => view.cls.set(k, 'bad'));
-        view.cls.set(item.id, 'sel');
-        applyView();
-        flyTo(item, K0 * 2.4);
-        if (!wide.matches) stage.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-      });
+      b.addEventListener('click', () => endShow(item, b));
       sw.append(b);
     }
     $('#rRetry').hidden = !Q.wrong.length;
@@ -1185,7 +1208,7 @@ kbd { font: inherit; }
     if (!Q.answered && /^[1-4]$/.test(e.key)) {
       const b = document.querySelectorAll('#qOpts .opt')[+e.key - 1];
       if (b) { e.preventDefault(); b.click(); }
-    } else if (Q.answered && (e.key === 'Enter' || e.key === 'ArrowRight') && !(e.target instanceof HTMLButtonElement)) {
+    } else if (Q.answered && (e.key === 'ArrowRight' || (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)))) {
       e.preventDefault(); nextQ();
     }
   });
