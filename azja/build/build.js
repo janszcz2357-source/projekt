@@ -3,6 +3,7 @@ const path = require('path');
 const d3 = require('d3-geo');
 const topojson = require('topojson-client');
 const { cats, items } = require('./items.js');
+const ALIASES = require('./aliases.js');
 
 const DATA = path.join(__dirname, 'data');
 const read = (f) => JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8'));
@@ -171,10 +172,14 @@ for (const c of cats) {
     if (fact.toLowerCase().includes(name.toLowerCase().split(' ')[0].slice(0, 5)) && !['Ocean', 'Morze', 'Zatok', 'Góry', 'Jezio'].includes(name.slice(0, 5)))
       problems.push(`${name}: ciekawostka zdradza nazwę`);
     rec.x = r1(x); rec.y = r1(y);
+    const al = ALIASES[name];
+    if (al && al.alt && al.alt.length) rec.alt = al.alt;
+    if (al && al.variant && al.variant.length) rec.variant = al.variant;
     out.items.push(rec);
   }
 }
 out.items.forEach((it, i) => { it.id = 'o' + i; });
+for (const k of Object.keys(ALIASES)) if (!out.items.some((it) => it.name === k)) problems.push(`aliases.js: nieznany obiekt "${k}"`);
 
 // sprawdź za bliskie znaczniki
 for (let i = 0; i < out.items.length; i++) for (let j = i + 1; j < out.items.length; j++) {

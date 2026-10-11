@@ -4,7 +4,8 @@
   "description": "Buduje mapę Azji do nauki",
   "scripts": {
     "data": "sh fetch-data.sh",
-    "build": "node build.js && node assemble.js"
+    "build": "node build.js && node assemble.js",
+    "test": "node test-answers.js"
   },
   "keywords": [],
   "author": "",

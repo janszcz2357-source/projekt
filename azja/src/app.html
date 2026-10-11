@@ -137,6 +137,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--sel); outli
 .prompt-card { pointer-events: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 9px 16px 11px; max-width: 600px; min-width: 0; text-align: center; }
 .eyebrow { font-family: var(--font-display); font-size: 12.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .pmain { font-family: var(--font-display); font-weight: 700; font-size: 25px; line-height: 1.1; text-wrap: balance; }
+.prompt-card.is-type { width: min(100%, 460px); }
+.pform { display: flex; gap: 8px; margin-top: 8px; }
+.pform input { flex: 1 1 auto; min-width: 0; font: 600 17px/1.2 var(--font-body); padding: 9px 12px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); }
+.pform input::placeholder { color: var(--muted); font-weight: 500; }
+.pform input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+.pform.is-ok input { border-color: var(--good); background: var(--good-bg); }
+.pform.is-no input { border-color: var(--bad); background: var(--bad-bg); }
+.pform input:disabled { opacity: 1; -webkit-text-fill-color: var(--ink); }
+.ptools { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin-top: 6px; }
+.phint { font-family: var(--font-display); font-weight: 600; font-size: 17px; letter-spacing: .03em; color: var(--accent); white-space: pre-wrap; min-width: 0; text-align: left; }
+.links { display: flex; gap: 2px; margin-left: auto; }
+.link { border: 0; background: transparent; color: var(--accent); font-weight: 600; font-size: 14px; padding: 4px 8px; border-radius: 8px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link:hover { background: var(--surface-2); }
+.link:disabled { opacity: .45; cursor: default; text-decoration: none; }
 .pres { display: flex; align-items: center; justify-content: center; gap: 10px 14px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .pres-t { font-weight: 700; font-size: 15px; min-width: 0; }
 .pres-t.ok { color: var(--good); }
@@ -190,6 +204,7 @@ legend { padding: 0; margin-bottom: 8px; font-family: var(--font-display); font-
 .mode { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mode b { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
 .mode span { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+.mode[data-mode="mix"] { grid-column: 1 / -1; }
 .mode[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg button { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 7px 14px; cursor: pointer; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -297,6 +312,17 @@ kbd { font: inherit; }
         <div class="prompt-card">
           <div class="eyebrow" id="pEye"></div>
           <div class="pmain" id="pMain"></div>
+          <form class="pform" id="pForm" hidden autocomplete="off">
+            <input id="pInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" maxlength="60" aria-label="Nazwa zaznaczonego obiektu" placeholder="Wpisz nazwę…">
+            <button class="btn primary sm" type="submit" id="pCheck">Sprawdź</button>
+          </form>
+          <div class="ptools" id="pTools" hidden>
+            <span class="phint" id="pHint" aria-live="polite"></span>
+            <span class="links">
+              <button type="button" class="link" id="pHintBtn">Podpowiedź</button>
+              <button type="button" class="link" id="pSkip">Nie wiem</button>
+            </span>
+          </div>
           <div class="pres" id="pRes" hidden>
             <span class="pres-t" id="pResText"></span>
             <button class="btn primary sm" id="pNext">Dalej</button>
@@ -343,6 +369,7 @@ kbd { font: inherit; }
             <div class="modes" id="modes">
               <button class="mode" data-mode="find"><b>Wskaż na mapie</b><span>Podaję nazwę, Ty dotykasz właściwego znacznika.</span></button>
               <button class="mode" data-mode="name"><b>Rozpoznaj obiekt</b><span>Zaznaczam miejsce, Ty wybierasz nazwę.</span></button>
+              <button class="mode" data-mode="type"><b>Wpisz nazwę</b><span>Zaznaczam miejsce, Ty wpisujesz nazwę z klawiatury.</span></button>
               <button class="mode" data-mode="fact"><b>Ciekawostki</b><span>Czytasz opis i zgadujesz, o jaki obiekt chodzi.</span></button>
               <button class="mode" data-mode="mix"><b>Mieszany</b><span>Wszystkie rodzaje pytań na zmianę.</span></button>
             </div>
@@ -381,6 +408,10 @@ kbd { font: inherit; }
           <p class="note">Ocena jest orientacyjna, bo progi procentowe różnią się między szkołami.</p>
           <h3 id="rWrongH">Do powtórki</h3>
           <div class="wrong" id="rWrong"></div>
+          <div id="rSpellWrap" hidden>
+            <h3 id="rSpellH">Popraw pisownię</h3>
+            <div class="wrong" id="rSpell"></div>
+          </div>
           <div class="qactions">
             <button class="btn primary" id="rRetry">Powtórz błędne</button>
             <button class="btn" id="rNew">Nowy test</button>
@@ -393,6 +424,9 @@ kbd { font: inherit; }
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+/*ANSWERS*/
+</script>
 <script>
 (function () {
   'use strict';
@@ -426,6 +460,7 @@ kbd { font: inherit; }
   const BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
   const RANK = { morza: 0, jeziora: 1, gory: 2, wyspy: 3, niziny: 4, pustynie: 5, szczyty: 6, rzeki: 7 };
   const countIn = (cat) => ITEMS.filter((i) => i.cat === cat).length;
+  const AN = AsiaAnswers.build(ITEMS);
   const dotEl = (it) => { const d = h('span', 'dot c-' + it.cat + (it.cat === 'szczyty' ? ' tri' : '')); return d; };
 
   // ---------- Mapa ----------
@@ -521,16 +556,31 @@ kbd { font: inherit; }
     else sel.transition().duration(ms).call(zoom.transform, t);
   }
   function fit() { userMoved = false; go(fitTransform(), 450); }
+  function cardBottom() {
+    if ($('#prompt').hidden) return 0;
+    return $('#prompt .prompt-card').getBoundingClientRect().bottom - stage.getBoundingClientRect().top;
+  }
+  function visibleBottom() {
+    const vv = window.visualViewport;
+    if (!vv) return CH;
+    return Math.max(0, Math.min(CH, vv.offsetTop + vv.height - stage.getBoundingClientRect().top));
+  }
+  function freeBand() {
+    const top = Math.max(40, cardBottom() + 24);
+    const bottom = Math.max(top + 60, Math.min(CH - 50, visibleBottom() - 30));
+    return [top, bottom];
+  }
   function flyTo(it, kMin) {
     userMoved = true;
     const k = Math.min(K0 * 16, Math.max(T.k, kMin || 0));
-    const cy = state.tab === 'learn' && state.selected ? CH * 0.4 : CH * 0.5;
+    const band = freeBand();
+    const cy = state.tab === 'learn' && state.selected ? CH * 0.4 : $('#prompt').hidden ? CH * 0.5 : (band[0] + band[1]) / 2;
     go(d3.zoomIdentity.translate(CW / 2 - it.x * k, cy - it.y * k).scale(k), 650);
   }
   function ensureVisible(it) {
     const sx = T.applyX(it.x), sy = T.applyY(it.y);
-    const top = $('#prompt').hidden ? 40 : 110;
-    if (sx < 40 || sx > CW - 60 || sy < top || sy > CH - 50) flyTo(it, T.k);
+    const [top, bottom] = freeBand();
+    if (sx < 40 || sx > CW - 60 || sy < top || sy > bottom) flyTo(it, T.k);
   }
 
   new ResizeObserver(() => {
@@ -828,11 +878,11 @@ kbd { font: inherit; }
     if (!pool.length) return;
     const n = poolItems ? pool.length : (cfg.count && cfg.count < pool.length ? cfg.count : pool.length);
     const qs = shuffle(pool.slice()).slice(0, n).map((item) => {
-      const type = cfg.mode === 'mix' ? pick(['find', 'name', 'fact']) : cfg.mode;
-      return { item, type, options: type === 'find' ? null : makeOptions(item) };
+      const type = cfg.mode === 'mix' ? pick(['find', 'name', 'fact', 'type']) : cfg.mode;
+      return { item, type, options: type === 'name' || type === 'fact' ? makeOptions(item) : null };
     });
     const cats = new Set(poolItems ? cfg.cats.concat(pool.map((i) => i.cat)) : cfg.cats);
-    Q = { qs, i: 0, score: 0, answered: false, wrong: [], cats, phase: 'run' };
+    Q = { qs, i: 0, score: 0, answered: false, wrong: [], spell: [], cats, phase: 'run', typed: null };
     userMoved = false;
     $('#qSetup').hidden = true; $('#qEnd').hidden = true; $('#qRun').hidden = false;
     renderQ();
@@ -850,10 +900,25 @@ kbd { font: inherit; }
 
     const eye = $('#pEye'), main = $('#pMain');
     main.classList.toggle('is-fact', q.type === 'fact');
+    main.hidden = q.type === 'type';
     if (q.type === 'find') { eye.textContent = 'Wskaż na mapie'; main.textContent = q.item.name; }
     else if (q.type === 'name') { eye.textContent = 'Rozpoznaj · ' + CAT[q.item.cat].name; main.textContent = 'Jak nazywa się zaznaczony obiekt?'; }
+    else if (q.type === 'type') { eye.textContent = 'Wpisz nazwę · ' + CAT[q.item.cat].name; main.textContent = ''; }
     else { eye.textContent = 'Ciekawostka · ' + CAT[q.item.cat].name; main.textContent = q.item.fact; }
     $('#pRes').hidden = true;
+    const isType = q.type === 'type';
+    $('.prompt-card').classList.toggle('is-type', isType);
+    $('#pForm').hidden = !isType;
+    $('#pTools').hidden = !isType;
+    if (isType) {
+      if (!restore || !Q.typed) Q.typed = { input: '', res: null, hints: 0 };
+      const inp = $('#pInput');
+      inp.value = '';
+      inp.disabled = false;
+      $('#pCheck').disabled = false;
+      $('#pForm').className = 'pform';
+      showHint();
+    }
     const wasHidden = $('#prompt').hidden;
     $('#prompt').hidden = false;
     if (wasHidden || Q.i === 0) refit();
@@ -861,6 +926,7 @@ kbd { font: inherit; }
     $('#qHint').textContent = q.type === 'find'
       ? 'Dotknij właściwego znacznika na mapie. Kolor oznacza grupę obiektów; gdy jest ciasno, przybliż mapę.'
       : q.type === 'name' ? 'Wybierz nazwę obiektu oznaczonego pulsującym znacznikiem.'
+      : q.type === 'type' ? 'Wpisz nazwę w polu nad mapą i naciśnij Enter albo „Sprawdź”. Wielkość liter nie ma znaczenia. Brak polskich znaków i drobne literówki uznam, ale pokażę poprawną pisownię.'
       : 'Wybierz obiekt, który pasuje do opisu.';
 
     const opts = $('#qOpts');
@@ -880,15 +946,52 @@ kbd { font: inherit; }
     if (q.type === 'find') {
       for (const it of ITEMS) if (Q.cats.has(it.cat)) view.visible.add(it.id);
       view.visible.add(q.item.id);
-    } else if (q.type === 'name') {
+    } else if (q.type === 'name' || q.type === 'type') {
       view.visible.add(q.item.id);
       view.cls.set(q.item.id, 'target');
       if (q.item.d) view.rivers.set(q.item.id, 'hl');
     }
     applyView();
-    if (q.type === 'name') ensureVisible(q.item);
+    if (q.type === 'name' || q.type === 'type') ensureVisible(q.item);
     if (restore && Q.answered) showAnswer(Q.choice);
-    else Q.answered = false;
+    else {
+      Q.answered = false;
+      if (isType) $('#pInput').focus({ preventScroll: true });
+    }
+  }
+
+  function litery(n) {
+    return n + ' ' + (n === 1 ? 'litera' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'litery' : 'liter');
+  }
+  function showHint() {
+    const q = Q.qs[Q.i], n = Q.typed.hints;
+    const total = AsiaAnswers.letters(q.item.name);
+    $('#pHint').textContent = n ? AsiaAnswers.hint(q.item.name, n) : '';
+    $('#pHint').title = n ? litery(total) : '';
+    $('#pHintBtn').disabled = n >= total - 1;
+    $('#pHintBtn').textContent = n ? 'Kolejna litera' : 'Podpowiedź';
+  }
+  $('#pHintBtn').addEventListener('click', () => {
+    if (!Q || Q.answered) return;
+    Q.typed.hints++;
+    showHint();
+    $('#pInput').focus({ preventScroll: true });
+  });
+  $('#pForm').addEventListener('submit', (e) => { e.preventDefault(); answerTyped(false); });
+  $('#pSkip').addEventListener('click', () => answerTyped(true));
+
+  function answerTyped(skip) {
+    if (!Q || Q.phase !== 'run' || Q.answered) return;
+    const q = Q.qs[Q.i];
+    const input = $('#pInput').value;
+    if (!skip && !input.trim()) { toast('Wpisz nazwę albo wybierz „Nie wiem”.'); $('#pInput').focus({ preventScroll: true }); return; }
+    const res = skip ? { ok: false, status: 'skip' } : AsiaAnswers.check(AN, q.item.id, input);
+    Q.answered = true;
+    Q.typed.input = skip ? '' : input.trim();
+    Q.typed.res = res;
+    if (res.ok) Q.score++; else Q.wrong.push(q.item);
+    if (res.ok && (res.status === 'diacritics' || res.status === 'typo' || res.status === 'variant')) Q.spell.push({ item: q.item, input: input.trim() });
+    showAnswer(q.item.id);
   }
 
   function answer(choiceId) {
@@ -898,15 +1001,45 @@ kbd { font: inherit; }
     if (choiceId === q.item.id) Q.score++; else Q.wrong.push(q.item);
     showAnswer(choiceId);
   }
-  function showAnswer(choiceId) {
-    const q = Q.qs[Q.i];
-    const ok = choiceId === q.item.id;
+  function updateScore() {
     $('#qScore').textContent = pts(Q.score);
     $('#qBar').style.width = (100 * (Q.i + 1) / Q.qs.length) + '%';
+  }
+  function revealTarget(q) {
     view.visible.add(q.item.id);
     view.cls.set(q.item.id, 'good');
     view.force.add(q.item.id);
     if (q.item.d) view.rivers.set(q.item.id, 'hl');
+  }
+  function line(pre, bold, post) {
+    const p = h('p');
+    p.append(pre, h('b', null, bold), post);
+    return p;
+  }
+  function finish(ok, head, paras, presText) {
+    const fb = $('#qFb');
+    fb.className = 'fb ' + (ok ? 'ok' : 'no');
+    fb.textContent = '';
+    fb.append(h('div', 'fb-h', head));
+    for (const x of paras) fb.append(typeof x === 'string' ? h('p', null, x) : x);
+    fb.hidden = false;
+    const label = Q.i + 1 < Q.qs.length ? 'Dalej' : 'Zobacz wynik';
+    const next = $('#qNext');
+    next.textContent = label;
+    next.hidden = false;
+    const rt = $('#pResText');
+    rt.className = 'pres-t ' + (ok ? 'ok' : 'no');
+    rt.textContent = presText;
+    $('#pNext').textContent = label;
+    $('#pRes').hidden = false;
+    $('#pNext').focus({ preventScroll: true });
+  }
+  function showAnswer(choiceId) {
+    const q = Q.qs[Q.i];
+    if (q.type === 'type') { showTyped(); return; }
+    const ok = choiceId === q.item.id;
+    updateScore();
+    revealTarget(q);
     if (!ok && q.type === 'find') { view.cls.set(choiceId, 'bad'); view.force.add(choiceId); }
     applyView();
     ensureVisible(q.item);
@@ -916,31 +1049,49 @@ kbd { font: inherit; }
       if (b.dataset.id === q.item.id) b.classList.add('good');
       else if (b.dataset.id === choiceId) b.classList.add('bad');
     }
-    const fb = $('#qFb');
-    fb.className = 'fb ' + (ok ? 'ok' : 'no');
-    fb.textContent = '';
     let head;
     if (ok) head = pick(['Dobrze!', 'Brawo!', 'Zgadza się!', 'Świetnie!']);
     else if (q.type === 'find') head = `To jest ${BY_ID[choiceId].name}.`;
     else head = 'Niestety nie.';
-    fb.append(h('div', 'fb-h', head));
-    if (!ok) {
-      const p = h('p');
-      p.append('Poprawna odpowiedź: ', h('b', null, q.item.name), q.type === 'find' ? ' – zaznaczona na zielono.' : '.');
-      fb.append(p);
+    const paras = [];
+    if (!ok) paras.push(line('Poprawna odpowiedź: ', q.item.name, q.type === 'find' ? ' – zaznaczona na zielono.' : '.'));
+    paras.push(q.type === 'fact' ? `${q.item.name} (${q.item.kind}) jest zaznaczony na mapie na zielono.` : q.item.fact);
+    finish(ok, head, paras, ok ? head : 'Poprawnie: ' + q.item.name);
+  }
+  function showTyped() {
+    const q = Q.qs[Q.i], it = q.item, t = Q.typed, r = t.res;
+    updateScore();
+    revealTarget(q);
+    if (r.status === 'other') {
+      view.visible.add(r.other.id); view.cls.set(r.other.id, 'bad'); view.force.add(r.other.id);
+      if (r.other.d) view.rivers.set(r.other.id, 'soft');
     }
-    fb.append(h('p', null, q.type === 'fact' ? `${q.item.name} (${q.item.kind}) jest zaznaczony na mapie na zielono.` : q.item.fact));
-    fb.hidden = false;
-    const next = $('#qNext');
-    const label = Q.i + 1 < Q.qs.length ? 'Dalej' : 'Zobacz wynik';
-    next.textContent = label;
-    next.hidden = false;
-    const rt = $('#pResText');
-    rt.className = 'pres-t ' + (ok ? 'ok' : 'no');
-    rt.textContent = ok ? head : 'Poprawnie: ' + q.item.name;
-    $('#pNext').textContent = label;
-    $('#pRes').hidden = false;
-    next.focus({ preventScroll: true });
+    applyView();
+    ensureVisible(it);
+    const inp = $('#pInput');
+    inp.value = t.input;
+    inp.disabled = true;
+    $('#pCheck').disabled = true;
+    $('#pForm').className = 'pform ' + (r.ok ? 'is-ok' : 'is-no');
+    $('#pTools').hidden = true;
+
+    const name = it.name, paras = [];
+    let head, pres;
+    switch (r.status) {
+      case 'exact': head = pick(['Dobrze!', 'Brawo!', 'Zgadza się!', 'Świetnie!']); pres = head; break;
+      case 'alt': head = 'Dobrze!'; pres = head; paras.push(line('Na liście ta nazwa brzmi: ', name, '.')); break;
+      case 'diacritics': head = 'Dobrze, tylko pamiętaj o polskich znakach'; pres = 'Pisownia: ' + name; paras.push(line('Poprawna pisownia: ', name, '.')); break;
+      case 'variant': head = 'Uznaję, ale po polsku piszemy inaczej'; pres = 'Po polsku: ' + name; paras.push(line('Polska nazwa: ', name, '.')); break;
+      case 'typo': head = 'Uznaję, ale popraw literówkę'; pres = 'Pisownia: ' + name; paras.push(line('Poprawna pisownia: ', name, '.')); break;
+      case 'generic': head = `To nie jest ${r.generic}`; pres = 'Poprawnie: ' + name; paras.push(line('Poprawnie: ', name, ` (${it.kind}).`)); break;
+      case 'other': head = 'To nazwa innego obiektu'; pres = 'Poprawnie: ' + name; paras.push(line('', r.other.name, ' jest zaznaczony na czerwono.'), line('Poprawnie: ', name, '.')); break;
+      case 'skip': head = 'Odpowiedź'; pres = name; paras.push(line('To jest ', name, '.')); break;
+      default: head = 'Niestety nie'; pres = 'Poprawnie: ' + name; paras.push(line('Poprawnie: ', name, '.'));
+    }
+    if (t.input && r.status !== 'exact') paras.unshift(line('Twoja odpowiedź: ', t.input, ''));
+    if (t.hints) paras.push(`Podpowiedzi: ${t.hints}.`);
+    paras.push(it.fact);
+    finish(r.ok, head, paras, pres);
   }
   function nextQ() {
     if (!Q || !Q.answered) return;
@@ -996,6 +1147,23 @@ kbd { font: inherit; }
       });
       box.append(b);
     }
+    const sw = $('#rSpell');
+    sw.textContent = '';
+    $('#rSpellWrap').hidden = !Q.spell.length;
+    $('#rSpellH').textContent = `Popraw pisownię (${Q.spell.length})`;
+    for (const { item, input } of Q.spell) {
+      const b = h('button', 'it');
+      b.append(dotEl(item), h('span', 'nm', item.name), h('span', 'kd', 'wpisano: ' + input));
+      b.addEventListener('click', () => {
+        view.visible.add(item.id); view.force.add(item.id);
+        view.cls.forEach((v, k) => view.cls.set(k, 'bad'));
+        view.cls.set(item.id, 'sel');
+        applyView();
+        flyTo(item, K0 * 2.4);
+        if (!wide.matches) stage.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      });
+      sw.append(b);
+    }
     $('#rRetry').hidden = !Q.wrong.length;
     $('#rRetry').textContent = `Powtórz błędne (${Q.wrong.length})`;
     resetView();
@@ -1013,6 +1181,7 @@ kbd { font: inherit; }
 
   document.addEventListener('keydown', (e) => {
     if (state.tab !== 'quiz' || !Q || Q.phase !== 'run' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target instanceof HTMLInputElement) return;
     if (!Q.answered && /^[1-4]$/.test(e.key)) {
       const b = document.querySelectorAll('#qOpts .opt')[+e.key - 1];
       if (b) { e.preventDefault(); b.click(); }
@@ -1020,6 +1189,18 @@ kbd { font: inherit; }
       e.preventDefault(); nextQ();
     }
   });
+
+  if (window.visualViewport) {
+    let vvTimer = 0;
+    window.visualViewport.addEventListener('resize', () => {
+      clearTimeout(vvTimer);
+      vvTimer = setTimeout(() => {
+        if (state.tab !== 'quiz' || !Q || Q.phase !== 'run') return;
+        const q = Q.qs[Q.i];
+        if (q.type === 'type' || q.type === 'name') ensureVisible(q.item);
+      }, 150);
+    });
+  }
 
   buildLearnUI();
   learnView();

@@ -1,4 +1,4 @@
-// Składa gotową stronę: szablon src/app.html + dane mapy z build/map.json.
+// Składa gotową stronę: szablon src/app.html + dane mapy z build/map.json + src/answers.js.
 //   node assemble.js            -> azja/index.html (samodzielny plik HTML)
 //   node assemble.js frag.html  -> dodatkowo sam fragment strony (bez <html>/<head>)
 const fs = require('fs');
@@ -6,8 +6,9 @@ const path = require('path');
 
 const map = fs.readFileSync(path.join(__dirname, 'map.json'), 'utf8');
 const tpl = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.html'), 'utf8');
-const page = tpl.replace('/*MAPDATA*/null', () => map);
-if (page === tpl) throw new Error('Brak znacznika /*MAPDATA*/ w szablonie');
+const answers = fs.readFileSync(path.join(__dirname, '..', 'src', 'answers.js'), 'utf8');
+if (!tpl.includes('/*MAPDATA*/null') || !tpl.includes('/*ANSWERS*/')) throw new Error('Brak znaczników /*MAPDATA*/ lub /*ANSWERS*/ w szablonie');
+const page = tpl.replace('/*MAPDATA*/null', () => map).replace('/*ANSWERS*/', () => answers.trim());
 
 const cut = page.indexOf('</style>') + '</style>'.length;
 const html = `<!doctype html>
