@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signal Garden — a living showcase</title>
+<meta name="description" content="An interactive single-file showcase: generative canvas, live theming, scroll reveals and a tiny playable game. No dependencies.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2306141a'/><circle cx='16' cy='16' r='6' fill='%2339ffb0'/></svg>">
+<style>
+:root{
+  --bg:#06141a; --bg2:#0b2430; --ink:#e8fff6; --mute:#8fb3a8;
+  --a:#39ffb0; --b:#ffd166; --c:#ff5d8f;
+  --card:rgba(255,255,255,.05); --line:rgba(255,255,255,.12);
+  --r:18px; --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme=ember]{--bg:#1a0b08;--bg2:#2c120c;--ink:#fff1e8;--mute:#c9a08c;--a:#ff8a3d;--b:#ffd166;--c:#ff3d6e}
+:root[data-theme=ice]{--bg:#f3f8ff;--bg2:#e0ecfb;--ink:#0b1b33;--mute:#4a6283;--a:#2563ff;--b:#00a7a7;--c:#c026d3;--card:rgba(11,27,51,.05);--line:rgba(11,27,51,.14)}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:radial-gradient(1200px 700px at 80% -10%,var(--bg2),var(--bg));color:var(--ink);line-height:1.6;overflow-x:hidden;transition:background .5s,color .5s}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--b);outline-offset:3px;border-radius:6px}
+.skip{position:absolute;left:-999px}.skip:focus{left:12px;top:12px;background:var(--b);color:#000;padding:8px 12px;z-index:99}
+#field{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+main,header,footer{position:relative;z-index:1}
+.wrap{width:min(1100px,100% - 32px);margin-inline:auto}
+nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0;gap:12px;flex-wrap:wrap}
+.logo{font-family:var(--mono);font-weight:700;text-decoration:none;letter-spacing:.04em}
+.logo i{display:inline-block;width:.7em;height:.7em;border-radius:50%;background:var(--a);margin-right:.5em;box-shadow:0 0 14px var(--a)}
+.themes{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:.8rem;color:var(--mute)}
+.themes button{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);cursor:pointer}
+.themes button[aria-pressed=true]{border-color:var(--ink)}
+.hero{min-height:82vh;display:grid;align-content:center;padding:6vh 0}
+.eyebrow{font-family:var(--mono);color:var(--a);font-size:.85rem;letter-spacing:.14em;text-transform:uppercase}
+h1{font-size:clamp(2.6rem,9vw,6.4rem);line-height:.98;letter-spacing:-.035em;margin:.25em 0 .35em;max-width:14ch}
+h1 span{background:linear-gradient(100deg,var(--a),var(--b) 55%,var(--c));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lede{font-size:clamp(1.05rem,2.2vw,1.35rem);color:var(--mute);max-width:52ch}
+.cta{display:flex;gap:12px;margin-top:2rem;flex-wrap:wrap}
+.btn{display:inline-block;padding:.85em 1.4em;border-radius:999px;font-weight:700;text-decoration:none;border:1px solid var(--line);transition:transform .2s,box-shadow .2s;cursor:pointer;background:none;color:var(--ink);font:inherit;font-weight:700}
+.btn.primary{background:var(--a);color:#03130c;border-color:transparent;box-shadow:0 8px 30px -8px var(--a)}
+.btn:hover{transform:translateY(-3px)}
+.type{font-family:var(--mono);color:var(--b);min-height:1.6em;margin-top:1.4rem}
+.type::after{content:"▍";animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+section{padding:clamp(48px,9vw,110px) 0}
+h2{font-size:clamp(1.8rem,5vw,3rem);letter-spacing:-.02em;margin-bottom:.4em}
+.sub{color:var(--mute);max-width:56ch;margin-bottom:2rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px;backdrop-filter:blur(8px);transition:transform .25s,border-color .25s;transform-style:preserve-3d}
+.card:hover{border-color:var(--a)}
+.card h3{margin-bottom:.4em}
+.card p{color:var(--mute);font-size:.95rem}
+.ico{font-size:1.8rem;display:block;margin-bottom:.6rem}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s,transform .7s}
+.reveal.in{opacity:1;transform:none}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;text-align:center}
+.stats b{display:block;font-size:clamp(2.2rem,6vw,3.6rem);color:var(--a);font-family:var(--mono)}
+.stats span{color:var(--mute);font-size:.9rem}
+.lab{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.panel h3{font-family:var(--mono);font-size:.85rem;color:var(--a);margin-bottom:12px;letter-spacing:.1em;text-transform:uppercase}
+#game{width:100%;aspect-ratio:4/3;border-radius:12px;background:#00000040;display:block;touch-action:none;cursor:crosshair}
+.row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-family:var(--mono);font-size:.85rem;color:var(--mute);gap:10px;flex-wrap:wrap}
+label{display:block;font-size:.85rem;color:var(--mute);margin:12px 0 4px}
+input[type=range]{width:100%;accent-color:var(--a)}
+.swatch{height:90px;border-radius:12px;margin-top:14px;transition:background .15s}
+code.out{display:block;margin-top:10px;font-family:var(--mono);color:var(--b);word-break:break-all}
+.tl{border-left:2px solid var(--line);padding-left:22px;display:grid;gap:22px}
+.tl div{position:relative}
+.tl div::before{content:"";position:absolute;left:-29px;top:.45em;width:12px;height:12px;border-radius:50%;background:var(--a);box-shadow:0 0 12px var(--a)}
+.tl small{font-family:var(--mono);color:var(--b)}
+footer{padding:48px 0 64px;color:var(--mute);text-align:center;font-size:.9rem;border-top:1px solid var(--line)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}.reveal{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<canvas id="field" aria-hidden="true"></canvas>
+
+<header class="wrap">
+  <nav aria-label="Primary">
+    <a class="logo" href="#top"><i></i>SIGNAL/GARDEN</a>
+    <div class="themes" role="group" aria-label="Theme">
+      theme
+      <button data-t="" aria-label="Aurora theme" style="background:#39ffb0" aria-pressed="true"></button>
+      <button data-t="ember" aria-label="Ember theme" style="background:#ff8a3d" aria-pressed="false"></button>
+      <button data-t="ice" aria-label="Ice theme" style="background:#2563ff" aria-pressed="false"></button>
+    </div>
+  </nav>
+</header>
+
+<main id="main">
+  <div class="wrap hero" id="top">
+    <p class="eyebrow">One file · zero dependencies</p>
+    <h1>Websites that <span>feel alive.</span></h1>
+    <p class="lede">A tiny garden of living signals. Move your mouse — the field reacts. Switch the theme. Play the game. Everything below is real, working code in a single HTML file.</p>
+    <p class="type" id="type" aria-live="off"></p>
+    <div class="cta">
+      <a class="btn primary" href="#lab">Open the lab</a>
+      <a class="btn" href="#craft">See the craft</a>
+    </div>
+  </div>
+
+  <section class="wrap" id="craft">
+    <h2 class="reveal">What's under the hood</h2>
+    <p class="sub reveal">Hand-built, accessible and fast. No frameworks, no build step, nothing to install.</p>
+    <div class="grid">
+      <article class="card reveal tilt"><span class="ico">🌌</span><h3>Generative canvas</h3><p>Hundreds of particles drift, link up and flee your cursor, tuned to your theme colors.</p></article>
+      <article class="card reveal tilt"><span class="ico">🎨</span><h3>Live theming</h3><p>CSS custom properties re-skin the entire page instantly — canvas included.</p></article>
+      <article class="card reveal tilt"><span class="ico">♿</span><h3>Accessible by default</h3><p>Skip link, focus rings, semantic landmarks and full reduced-motion support.</p></article>
+      <article class="card reveal tilt"><span class="ico">📱</span><h3>Responsive</h3><p>Fluid type and auto-fit grids from 320px phones to ultrawide screens.</p></article>
+      <article class="card reveal tilt"><span class="ico">⚡</span><h3>Featherweight</h3><p>Under 20 KB total. Loads before you finish blinking.</p></article>
+      <article class="card reveal tilt"><span class="ico">🕹️</span><h3>Playful</h3><p>Because a showcase should have a little fun in it. Try the game below.</p></article>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="stats panel reveal">
+      <div><b data-n="320">0</b><span>px min width supported</span></div>
+      <div><b data-n="0">0</b><span>dependencies</span></div>
+      <div><b data-n="100">0</b><span>target Lighthouse score</span></div>
+      <div><b data-n="1">0</b><span>file</span></div>
+    </div>
+  </section>
+
+  <section class="wrap" id="lab">
+    <h2 class="reveal">The lab</h2>
+    <p class="sub reveal">Two toys. Both run entirely in your browser.</p>
+    <div class="lab">
+      <div class="panel reveal">
+        <h3>Catch the signals</h3>
+        <canvas id="game" width="480" height="360" aria-label="Mini game: click or tap the glowing orbs before they fade"></canvas>
+        <div class="row"><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span><button class="btn" id="reset" type="button">Restart</button></div>
+      </div>
+      <div class="panel reveal">
+        <h3>Color mixer</h3>
+        <label for="h">Hue</label><input id="h" type="range" min="0" max="360" value="150">
+        <label for="s">Saturation</label><input id="s" type="range" min="0" max="100" value="90">
+        <label for="l">Lightness</label><input id="l" type="range" min="10" max="90" value="60">
+        <div class="swatch" id="sw"></div>
+        <code class="out" id="out"></code>
+        <button class="btn" id="copy" type="button" style="margin-top:12px">Copy color</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2 class="reveal">How it came together</h2>
+    <div class="tl">
+      <div class="reveal"><small>01 · Brief</small><p>Goal: show range in a single page. Audience: anyone curious. Action: poke around.</p></div>
+      <div class="reveal"><small>02 · Design</small><p>Deep-sea aurora palette, mono accents, one bold move — the reactive field.</p></div>
+      <div class="reveal"><small>03 · Build</small><p>Semantic HTML, token-driven CSS, ~200 lines of vanilla JS.</p></div>
+      <div class="reveal"><small>04 · Ship</small><p>Drop <code>index.html</code> on any static host. Done.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">Built with Claude Code · Signal Garden © 2026</div></footer>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ---- theming ---- */
+$$('.themes button').forEach(b=>b.onclick=()=>{
+  document.documentElement.dataset.theme=b.dataset.t;
+  $$('.themes button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  try{localStorage.theme=b.dataset.t}catch(e){}
+  setTimeout(()=>{cols=[css('--a'),css('--b'),css('--c')]},60);
+});
+try{const t=localStorage.theme;if(t!==undefined){const b=$(`.themes button[data-t="${t}"]`);b&&b.click()}}catch(e){}
+
+/* ---- particle field ---- */
+const cv=$('#field'),cx=cv.getContext('2d');let W,H,P=[],mouse={x:-999,y:-999},cols=[css('--a'),css('--b'),css('--c')];
+function size(){W=cv.width=innerWidth;H=cv.height=innerHeight;const n=Math.min(130,Math.floor(W*H/14000));P=Array.from({length:n},()=>({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.5,vy:(Math.random()-.5)*.5,c:Math.random()*3|0}))}
+addEventListener('resize',size);size();
+addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});
+function frame(){
+  cx.clearRect(0,0,W,H);
+  for(const p of P){
+    const dx=p.x-mouse.x,dy=p.y-mouse.y,d=Math.hypot(dx,dy);
+    if(d<140){p.vx+=dx/d*.12;p.vy+=dy/d*.12}
+    p.vx*=.985;p.vy*=.985;
+    p.x+=p.vx+(Math.random()-.5)*.1;p.y+=p.vy+(Math.random()-.5)*.1;
+    if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;
+  }
+  cx.globalAlpha=.5;
+  for(let i=0;i<P.length;i++)for(let j=i+1;j<P.length;j++){
+    const a=P[i],b=P[j],d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(d<110){cx.strokeStyle=cols[a.c];cx.globalAlpha=(1-d/110)*.35;cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);cx.stroke()}
+  }
+  cx.globalAlpha=.9;
+  for(const p of P){cx.fillStyle=cols[p.c];cx.beginPath();cx.arc(p.x,p.y,2,0,6.3);cx.fill()}
+  if(!reduce)requestAnimationFrame(frame)
+}
+frame();
+
+/* ---- typewriter ---- */
+const words=['reactive.','accessible.','featherweight.','a little bit magic.'];let wi=0,ci=0,del=false;const ty=$('#type');
+if(reduce){ty.textContent='Built to be '+words[0]}else(function tick(){
+  const w=words[wi];ty.textContent='Built to be '+w.slice(0,ci);
+  if(!del&&ci===w.length){del=true;return setTimeout(tick,1400)}
+  if(del&&ci===0){del=false;wi=(wi+1)%words.length}
+  ci+=del?-1:1;setTimeout(tick,del?35:70)
+})();
+
+/* ---- reveal + counters ---- */
+const io=new IntersectionObserver(es=>es.forEach(e=>{
+  if(!e.isIntersecting)return;e.target.classList.add('in');io.unobserve(e.target);
+  e.target.querySelectorAll?.('[data-n]').forEach(count);
+}),{threshold:.2});
+$$('.reveal').forEach(el=>io.observe(el));
+function count(el){const to=+el.dataset.n;let t0;const f=t=>{t0??=t;const k=Math.min(1,(t-t0)/1200);el.textContent=Math.round(to*(1-Math.pow(1-k,3)));k<1&&requestAnimationFrame(f)};reduce?el.textContent=to:requestAnimationFrame(f)}
+
+/* ---- card tilt ---- */
+if(!reduce)$$('.tilt').forEach(c=>{
+  c.addEventListener('pointermove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform=`perspective(700px) rotateY(${x*10}deg) rotateX(${-y*10}deg) translateY(-4px)`});
+  c.addEventListener('pointerleave',()=>c.style.transform='');
+});
+
+/* ---- mini game ---- */
+const g=$('#game'),gx=g.getContext('2d');let orbs=[],score=0,best=0,miss=0,over=false,last=0,spawn=0;
+try{best=+localStorage.best||0}catch(e){}
+$('#best').textContent=best;
+function reset(){orbs=[];score=0;miss=0;over=false;spawn=0;$('#score').textContent=0}
+$('#reset').onclick=reset;
+g.addEventListener('pointerdown',e=>{
+  if(over){reset();return}
+  const r=g.getBoundingClientRect(),x=(e.clientX-r.left)*g.width/r.width,y=(e.clientY-r.top)*g.height/r.height;
+  for(let i=orbs.length-1;i>=0;i--){const o=orbs[i];if(Math.hypot(o.x-x,o.y-y)<o.r+6){orbs.splice(i,1);score++;$('#score').textContent=score;
+    if(score>best){best=score;$('#best').textContent=best;try{localStorage.best=best}catch(e){}}return}}
+});
+function loop(t){
+  const dt=Math.min(50,t-last)/1000;last=t;
+  gx.clearRect(0,0,g.width,g.height);
+  if(!over){
+    spawn-=dt;if(spawn<=0){spawn=Math.max(.3,.9-score*.02);orbs.push({x:30+Math.random()*(g.width-60),y:30+Math.random()*(g.height-60),r:6,life:0,max:1.6-Math.min(.8,score*.02)})}
+    for(let i=orbs.length-1;i>=0;i--){const o=orbs[i];o.life+=dt;if(o.life>o.max){orbs.splice(i,1);if(++miss>=5)over=true}}
+  }
+  orbs.forEach((o,i)=>{const k=o.life/o.max,rad=o.r+Math.sin(k*Math.PI)*16;
+    gx.globalAlpha=1-k*.6;gx.fillStyle=cols[i%3];gx.shadowColor=cols[i%3];gx.shadowBlur=20;
+    gx.beginPath();gx.arc(o.x,o.y,rad,0,6.3);gx.fill()});
+  gx.shadowBlur=0;gx.globalAlpha=1;gx.fillStyle=css('--mute');gx.font='14px monospace';
+  gx.fillText('Missed: '+miss+'/5',10,20);
+  if(over){gx.fillStyle=css('--ink');gx.font='bold 26px sans-serif';gx.textAlign='center';gx.fillText('Game over — tap to restart',g.width/2,g.height/2);gx.textAlign='left'}
+  requestAnimationFrame(loop)
+}
+requestAnimationFrame(loop);
+
+/* ---- color mixer ---- */
+const hs=['h','s','l'].map(i=>$('#'+i));
+function mix(){const c=`hsl(${hs[0].value} ${hs[1].value}% ${hs[2].value}%)`;$('#sw').style.background=c;$('#out').textContent=c}
+hs.forEach(i=>i.oninput=mix);mix();
+$('#copy').onclick=async e=>{try{await navigator.clipboard.writeText($('#out').textContent);e.target.textContent='Copied ✓'}catch(_){e.target.textContent='Press Ctrl+C'}setTimeout(()=>e.target.textContent='Copy color',1500)};
+})();
+</script>
+</body>
+</html>
